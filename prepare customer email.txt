@@ -50,14 +50,6 @@ components.forEach((comp, index) => {
           <td style="padding: 5px 0; border: none;"><strong>Total Stock:</strong></td>
           <td style="padding: 5px 0; text-align: right; border: none;"><strong>${comp.totalStockPieces || 0} pieces</strong></td>
         </tr>
-        <tr>
-          <td style="padding: 5px 0; border: none;"><strong>Linear Meters:</strong></td>
-          <td style="padding: 5px 0; text-align: right; border: none;">${comp.linearMetersWithWaste || 0}LM</td>
-        </tr>
-        <tr style="border-top: 2px solid #055902;">
-          <td style="padding: 8px 0 0 0; border: none;"><strong>Price:</strong></td>
-          <td style="padding: 8px 0 0 0; text-align: right; border: none; font-size: 18px; color: #055902;"><strong>$${comp.subtotal || '0.00'}</strong></td>
-        </tr>
       </table>
       <div style="font-size: 11px; color: #666; margin-top: 8px; padding-top: 8px; border-top: 1px solid #ddd;">
         ${comp.nestingNote || ''} • waste allowance
@@ -78,11 +70,9 @@ components.forEach((comp, index) => {
     <td style="border: 1px solid #ddd; padding: 8px;">${comp.length || 0}mm</td>
     <td style="border: 1px solid #ddd; padding: 8px; text-align: center;">${comp.quantity || 0}</td>
     <td style="border: 1px solid #ddd; padding: 8px; text-align: center;"><strong>${comp.totalStockPieces || 0}</strong></td>
-    <td style="border: 1px solid #ddd; padding: 8px;">${comp.linearMetersWithWaste || 0}LM</td>
-    <td style="border: 1px solid #ddd; padding: 8px; text-align: right;"><strong>$${comp.subtotal || '0.00'}</strong></td>
   </tr>
   <tr>
-    <td colspan="9" style="border: 1px solid #ddd; padding: 8px; background: #f9f9f9; font-size: 12px; color: #666;">${comp.nestingNote || ''} • waste allowance</td>
+    <td colspan="7" style="border: 1px solid #ddd; padding: 8px; background: #f9f9f9; font-size: 12px; color: #666;">${comp.nestingNote || ''} • waste allowance</td>
   </tr>`;
 });
 
@@ -222,8 +212,6 @@ th {
           <th>Length</th>
           <th>Qty</th>
           <th>Total Pieces</th>
-          <th>Lin Meters</th>
-          <th>Price</th>
         </tr>
       </thead>
       <tbody>${tableRows}</tbody>
