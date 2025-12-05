@@ -1,0 +1,3257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trend Timbers - Excel Upload Wizard</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background: #f5f5f7;
+            min-height: 100vh;
+            padding: 40px 20px;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        .wizard-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 18px;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.06);
+            overflow: hidden;
+        }
+
+        .header {
+            background: #c9a47f;
+            color: white;
+            padding: 48px 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 24px;
+        }
+
+        .header-logo {
+            height: 64px;
+            width: auto;
+            filter: brightness(0) invert(1);
+        }
+
+        .header-content {
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 36px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            letter-spacing: -0.5px;
+        }
+
+        .header p {
+            opacity: 0.95;
+            font-size: 17px;
+            font-weight: 400;
+            letter-spacing: -0.2px;
+        }
+
+        /* Progress Steps */
+        .progress-bar {
+            display: flex;
+            padding: 32px 50px;
+            background: #fafafa;
+            border-bottom: 1px solid #e5e5e7;
+        }
+
+        .progress-step {
+            flex: 1;
+            text-align: center;
+            position: relative;
+        }
+
+        .progress-step:not(:last-child)::after {
+            content: '';
+            position: absolute;
+            top: 20px;
+            left: 60%;
+            width: calc(40% + 20%);
+            height: 2px;
+            background: #d2d2d7;
+            z-index: 1;
+        }
+
+        .progress-step.active:not(:last-child)::after,
+        .progress-step.completed:not(:last-child)::after {
+            background: #412b28;
+        }
+
+        .step-circle {
+            width: 40px;
+            height: 40px;
+            background: white;
+            border: 2px solid #d2d2d7;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            z-index: 2;
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            font-weight: 500;
+        }
+
+        .progress-step.active .step-circle {
+            border-color: #412b28;
+            background: #412b28;
+            color: white;
+        }
+
+        .progress-step.completed .step-circle {
+            background: #055902;
+            border-color: #055902;
+            color: white;
+        }
+
+        .step-label {
+            margin-top: 12px;
+            font-size: 14px;
+            color: #86868b;
+            font-weight: 400;
+        }
+
+        .progress-step.active .step-label,
+        .progress-step.completed .step-label {
+            color: #1d1d1f;
+            font-weight: 500;
+        }
+
+        /* Content Area */
+        .wizard-content {
+            padding: 48px 40px;
+            min-height: 500px;
+        }
+
+        /* Step 1: Instructions */
+        .instructions-container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .instruction-card {
+            background: #f5f5f7;
+            border-radius: 12px;
+            padding: 28px;
+            margin-bottom: 20px;
+            border: 1px solid #e5e5e7;
+        }
+
+        .instruction-card h3 {
+            color: #412b28;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 20px;
+            font-weight: 600;
+            letter-spacing: -0.3px;
+        }
+
+        .format-example {
+            background: white;
+            border: 1px solid #d2d2d7;
+            border-radius: 10px;
+            padding: 16px;
+            margin: 16px 0;
+            font-family: 'SF Mono', 'Monaco', 'Cascadia Code', 'Courier New', monospace;
+            font-size: 13px;
+        }
+
+        .format-example.good {
+            border-left: 3px solid #055902;
+        }
+
+        .format-example.bad {
+            border-left: 3px solid #ff3b30;
+        }
+
+        /* Step 2: Upload */
+        .upload-zone {
+            border: 2px dashed #d2d2d7;
+            border-radius: 16px;
+            padding: 72px 40px;
+            text-align: center;
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            cursor: pointer;
+            background: #fafafa;
+        }
+
+        .upload-zone:hover {
+            border-color: #c9a47f;
+            background: #f5f5f7;
+        }
+
+        .upload-zone.drag-over {
+            border-color: #055902;
+            background: #f0fff4;
+            transform: scale(1.01);
+        }
+
+        .upload-icon {
+            font-size: 64px;
+            color: #c9a47f;
+            margin-bottom: 20px;
+        }
+
+        .upload-zone h3 {
+            color: #1d1d1f;
+            margin-bottom: 10px;
+            font-size: 24px;
+            font-weight: 600;
+            letter-spacing: -0.4px;
+        }
+
+        .upload-zone p {
+            color: #86868b;
+            margin-bottom: 20px;
+            font-size: 15px;
+        }
+
+        .file-types {
+            display: inline-flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .file-type-badge {
+            background: white;
+            border: 1px solid #d2d2d7;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 12px;
+            color: #86868b;
+            font-weight: 500;
+        }
+
+        /* Step 3: Review */
+        .review-summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .summary-card {
+            background: #f5f5f7;
+            border-radius: 12px;
+            padding: 24px;
+            text-align: center;
+            border: 1px solid #e5e5e7;
+        }
+
+        .summary-card.success {
+            background: #e8f5e9;
+            border-color: #a5d6a7;
+            color: #2e7d32;
+        }
+
+        .summary-card.warning {
+            background: #fff3e0;
+            border-color: #ffb74d;
+            color: #e65100;
+        }
+
+        .summary-card.danger {
+            background: #ffebee;
+            border-color: #ef5350;
+            color: #c62828;
+        }
+
+        .summary-number {
+            font-size: 36px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            letter-spacing: -0.5px;
+        }
+
+        .summary-label {
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        /* Matching Table */
+        .matching-table {
+            background: white;
+            border: 1px solid #e5e5e7;
+            border-radius: 12px;
+            overflow: hidden;
+            margin-bottom: 30px;
+        }
+
+        .matching-header {
+            background: #fafafa;
+            padding: 16px 20px;
+            border-bottom: 1px solid #e5e5e7;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-weight: 600;
+            color: #1d1d1f;
+        }
+
+        .matching-row {
+            display: grid;
+            grid-template-columns: 40px 2fr 1fr 1fr 2fr 80px;
+            padding: 16px 20px;
+            border-bottom: 1px solid #f5f5f7;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .matching-row:hover {
+            background: #fafafa;
+        }
+
+        .confidence-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            gap: 4px;
+        }
+
+        .confidence-badge.high {
+            background: #e8f5e9;
+            color: #2e7d32;
+        }
+
+        .confidence-badge.medium {
+            background: #fff3e0;
+            color: #e65100;
+        }
+
+        .confidence-badge.low {
+            background: #ffebee;
+            color: #c62828;
+        }
+
+        .species-selector {
+            width: 100%;
+            padding: 10px 14px;
+            border: 1px solid #d2d2d7;
+            border-radius: 10px;
+            font-size: 14px;
+            font-family: inherit;
+            transition: all 0.2s;
+            background: white;
+        }
+
+        .species-selector:focus {
+            outline: none;
+            border-color: #c9a47f;
+            box-shadow: 0 0 0 4px rgba(201, 164, 127, 0.1);
+        }
+
+        .species-selector.confirmed {
+            border-color: #055902;
+            background: #f0fff4;
+        }
+
+        /* Buttons */
+        .button-group {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            margin-top: 32px;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border-radius: 10px;
+            font-size: 15px;
+            font-weight: 500;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-family: inherit;
+            letter-spacing: -0.2px;
+        }
+
+        .btn-primary {
+            background: #412b28;
+            color: white;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            background: #2d1e1c;
+            transform: translateY(-1px);
+        }
+
+        .btn-primary:active:not(:disabled) {
+            transform: translateY(0);
+        }
+
+        .btn-secondary {
+            background: white;
+            color: #1d1d1f;
+            border: 1px solid #d2d2d7;
+        }
+
+        .btn-secondary:hover {
+            background: #f5f5f7;
+        }
+
+        .btn-success {
+            background: #055902;
+            color: white;
+        }
+
+        .btn-success:hover:not(:disabled) {
+            background: #044701;
+            transform: translateY(-1px);
+        }
+
+        .btn-success:active:not(:disabled) {
+            transform: translateY(0);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* Bulk Actions */
+        .bulk-actions {
+            background: #f0fff4;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 24px;
+            border: 1px solid #a5d6a7;
+        }
+
+        .bulk-actions h4 {
+            color: #412b28;
+            margin-bottom: 16px;
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .bulk-button {
+            padding: 10px 18px;
+            margin-right: 10px;
+            margin-bottom: 10px;
+            background: white;
+            border: 1px solid #412b28;
+            color: #412b28;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-weight: 500;
+            font-family: inherit;
+        }
+
+        .bulk-button:hover {
+            background: #412b28;
+            color: white;
+            transform: translateY(-1px);
+        }
+
+        /* Final Confirmation */
+        .confirmation-section {
+            background: #f5f5f7;
+            border-radius: 12px;
+            padding: 32px;
+            margin-top: 32px;
+            border: 1px solid #e5e5e7;
+        }
+
+        .confirmation-checkbox {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin: 20px 0;
+        }
+
+        .confirmation-checkbox input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+            accent-color: #412b28;
+        }
+
+        .confirmation-checkbox label {
+            cursor: pointer;
+            font-size: 15px;
+            color: #1d1d1f;
+        }
+
+        /* Alert Messages */
+        .alert {
+            padding: 16px 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .alert-info {
+            background: #e3f2fd;
+            color: #1565c0;
+            border: 1px solid #90caf9;
+        }
+
+        .alert-warning {
+            background: #fff3e0;
+            color: #e65100;
+            border: 1px solid #ffb74d;
+        }
+
+        .alert-success {
+            background: #e8f5e9;
+            color: #2e7d32;
+            border: 1px solid #a5d6a7;
+        }
+
+        /* Loading Spinner */
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.4);
+            backdrop-filter: blur(8px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+        }
+
+        .spinner {
+            width: 48px;
+            height: 48px;
+            border: 3px solid rgba(255,255,255,0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .loading-text {
+            color: white;
+            margin-top: 16px;
+            font-size: 15px;
+            font-weight: 500;
+        }
+
+        /* Validation UI Styles */
+        .component-card {
+            background: white;
+            border: 1px solid #e5e5e7;
+            border-radius: 14px;
+            padding: 24px;
+            margin-bottom: 16px;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+        }
+
+        .component-card:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+        }
+
+        .component-card.valid {
+            border-color: #a5d6a7;
+            background: #f0fff4;
+        }
+
+        .component-card.invalid {
+            border-color: #ef5350;
+            background: #fff5f5;
+        }
+
+        .component-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid #e5e5e7;
+        }
+
+        .component-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #1d1d1f;
+            letter-spacing: -0.3px;
+        }
+
+        .status-badge {
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 13px;
+        }
+
+        .status-badge.valid {
+            background: #055902;
+            color: white;
+        }
+
+        .status-badge.invalid {
+            background: #ff3b30;
+            color: white;
+        }
+
+        .validation-section {
+            margin-bottom: 16px;
+        }
+
+        .validation-item {
+            display: flex;
+            align-items: flex-start;
+            margin-bottom: 12px;
+            padding: 12px;
+            border-radius: 10px;
+        }
+
+        .validation-item.success {
+            background: #e8f5e9;
+            border-left: 3px solid #055902;
+        }
+
+        .validation-item.warning {
+            background: #fff3e0;
+            border-left: 3px solid #ff9800;
+        }
+
+        .validation-item.error {
+            background: #ffebee;
+            border-left: 3px solid #ff3b30;
+        }
+
+        .validation-icon {
+            font-size: 20px;
+            margin-right: 12px;
+            min-width: 25px;
+        }
+
+        .validation-content {
+            flex: 1;
+        }
+
+        .validation-title {
+            font-weight: 600;
+            margin-bottom: 4px;
+            color: #1d1d1f;
+        }
+
+        .validation-detail {
+            font-size: 14px;
+            color: #86868b;
+        }
+
+        .fix-buttons {
+            margin-top: 12px;
+        }
+
+        .fix-button {
+            background: #412b28;
+            color: white;
+            border: none;
+            padding: 10px 18px;
+            border-radius: 10px;
+            cursor: pointer;
+            margin-right: 10px;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+
+        .fix-button:hover {
+            background: #2d1e1c;
+            transform: translateY(-1px);
+        }
+
+        .fix-button.secondary {
+            background: white;
+            color: #1d1d1f;
+            border: 1px solid #d2d2d7;
+        }
+
+        .fix-button.secondary:hover {
+            background: #f5f5f7;
+        }
+
+        .nesting-breakdown {
+            background: #fafafa;
+            border: 1px solid #e5e5e7;
+            border-radius: 12px;
+            padding: 16px;
+            margin-top: 12px;
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        .nesting-title {
+            font-weight: 600;
+            margin-bottom: 12px;
+            color: #412b28;
+            font-size: 16px;
+        }
+
+        .nesting-visual {
+            background: white;
+            padding: 12px;
+            border-radius: 10px;
+            margin: 12px 0;
+            overflow-x: auto;
+        }
+
+        .board-layout {
+            display: flex;
+            align-items: center;
+            gap: 2px;
+            margin: 6px 0;
+        }
+
+        .piece {
+            background: #412b28;
+            color: white;
+            padding: 8px;
+            text-align: center;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 500;
+            white-space: nowrap;
+        }
+
+        .kerf {
+            background: #ff3b30;
+            color: white;
+            padding: 8px 4px;
+            text-align: center;
+            font-size: 10px;
+            font-weight: 500;
+        }
+
+        .waste {
+            background: #86868b;
+            color: white;
+            padding: 8px;
+            text-align: center;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .price-breakdown {
+            background: #f0fff4;
+            border: 1px solid #a5d6a7;
+            border-radius: 12px;
+            padding: 16px;
+            margin-top: 12px;
+        }
+
+        .price-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #c8e6c9;
+            color: #1d1d1f;
+        }
+
+        .price-row:last-child {
+            border-bottom: none;
+            font-weight: 600;
+            font-size: 18px;
+            padding-top: 12px;
+            margin-top: 12px;
+            border-top: 2px solid #055902;
+        }
+
+        .quote-summary {
+            background: #412b28;
+            color: white;
+            padding: 24px;
+            border-radius: 14px;
+            margin: 24px 0;
+        }
+
+        .summary-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 12px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.2);
+        }
+
+        .summary-row:last-child {
+            border-bottom: none;
+            border-top: 2px solid white;
+            margin-top: 12px;
+            font-size: 24px;
+            font-weight: 600;
+        }
+
+        .component-actions {
+            display: flex;
+            gap: 12px;
+            margin-top: 16px;
+            padding-top: 16px;
+            border-top: 1px solid #e5e5e7;
+        }
+
+        .action-button {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+
+        .action-button.remove {
+            background: #ff3b30;
+            color: white;
+        }
+
+        .action-button.remove:hover {
+            background: #e62e25;
+            transform: translateY(-1px);
+        }
+
+        .validation-summary {
+            background: #fafafa;
+            border: 1px solid #e5e5e7;
+            border-radius: 14px;
+            padding: 24px;
+            margin: 24px 0;
+        }
+
+        .validation-stats {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 16px;
+        }
+
+        .stat-item {
+            flex: 1;
+            text-align: center;
+            padding: 20px;
+            border-radius: 12px;
+        }
+
+        .stat-item.valid {
+            background: #e8f5e9;
+            border: 1px solid #a5d6a7;
+            color: #2e7d32;
+        }
+
+        .stat-item.invalid {
+            background: #ffebee;
+            border: 1px solid #ef5350;
+            color: #c62828;
+        }
+
+        .stat-number {
+            font-size: 32px;
+            font-weight: 600;
+            letter-spacing: -0.5px;
+        }
+
+        .stat-label {
+            font-size: 14px;
+            font-weight: 500;
+            margin-top: 6px;
+        }
+
+        /* TEST BANNER STYLES */
+        }
+    </style>
+</head>
+<body>
+    
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        // ============================================
+        // CONFIGURATION
+        // ============================================
+        const CONFIG = {
+            GET_TIMBER_URL: 'https://ttimbers.app.n8n.cloud/webhook/get-available-timber',
+            SUBMIT_QUOTE_URL: 'https://ttimbers.app.n8n.cloud/webhook/1ab34010-47ac-4006-948b-ced4f7e5e774',
+            REVIEW_MODE_URL: 'https://ttimbers.app.n8n.cloud/webhook/approve-quote'
+        };
+
+        // Function to detect if we're in review mode
+        function isReviewMode() {
+            const urlParams = new URLSearchParams(window.location.search);
+            return urlParams.get('mode') === 'review' || urlParams.get('reviewMode') === 'true';
+        }
+
+        // Function to get quote ID from URL
+        function getQuoteIdFromUrl() {
+            const urlParams = new URLSearchParams(window.location.search);
+            return urlParams.get('quoteId') || urlParams.get('id');
+        }
+
+        // Review Mode Component
+        function ReviewModeComponent({ quoteData }) {
+            const [deliveryCost, setDeliveryCost] = React.useState('0');
+            const [notes, setNotes] = React.useState('');
+            const [loading, setLoading] = React.useState(false);
+
+            const handleApprove = async () => {
+                setLoading(true);
+                try {
+                    const response = await fetch(CONFIG.REVIEW_MODE_URL, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            quoteId: quoteData.quoteId,
+                            deliveryCost: parseFloat(deliveryCost) || 0,
+                            notes: notes,
+                            action: 'approve'
+                        })
+                    });
+
+                    if (response.ok) {
+                        alert('Quote approved and sent to customer successfully!');
+                        window.close();
+                    } else {
+                        alert('Error approving quote. Please try again.');
+                    }
+                } catch (error) {
+                    console.error('Error:', error);
+                    alert('Error approving quote. Please try again.');
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            const downloadOriginalFile = () => {
+                if (quoteData.originalFile && quoteData.originalFile.data) {
+                    // Create a blob from base64 data
+                    const byteCharacters = atob(quoteData.originalFile.data);
+                    const byteNumbers = new Array(byteCharacters.length);
+                    for (let i = 0; i < byteCharacters.length; i++) {
+                        byteNumbers[i] = byteCharacters.charCodeAt(i);
+                    }
+                    const byteArray = new Uint8Array(byteNumbers);
+                    const blob = new Blob([byteArray], { type: quoteData.originalFile.mimetype || 'application/octet-stream' });
+                    
+                    // Create download link
+                    const url = window.URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.download = quoteData.originalFile.filename || 'cutting-list.xlsx';
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    window.URL.revokeObjectURL(url);
+                }
+            };
+
+            return (
+                <div style={{maxWidth: '1200px', margin: '0 auto', padding: '40px'}}>
+                    {loading && (
+                        <div className="loading-overlay">
+                            <div>
+                                <div className="spinner"></div>
+                                <div className="loading-text">Processing approval...</div>
+                            </div>
+                        </div>
+                    )}
+
+                    <div style={{background: 'linear-gradient(135deg, #055902, #c9a47f)', color: 'white', padding: '40px', borderRadius: '12px', marginBottom: '30px'}}>
+                        <h1>Quote Review & Approval</h1>
+                        <p>Quote ID: {quoteData.quoteId}</p>
+                        <p>Date: {new Date(quoteData.timestamp).toLocaleDateString()}</p>
+                    </div>
+
+                    {/* Customer Information Section */}
+                    <div style={{background: 'white', border: '1px solid #e5e5e7', borderRadius: '12px', padding: '30px', marginBottom: '24px'}}>
+                        <h3 style={{color: '#055902', marginBottom: '20px', fontSize: '20px', borderBottom: '2px solid #f0f0f0', paddingBottom: '10px'}}>Customer Information</h3>
+                        <table>
+                            <tbody>
+                                <tr>
+                                    <td style={{padding: '10px'}}><strong>Name:</strong></td>
+                                    <td style={{padding: '10px'}}>{quoteData.studentInfo.name}</td>
+                                </tr>
+                                <tr>
+                                    <td style={{padding: '10px'}}><strong>Email:</strong></td>
+                                    <td style={{padding: '10px'}}>{quoteData.studentInfo.email}</td>
+                                </tr>
+                                <tr>
+                                    <td style={{padding: '10px'}}><strong>Mobile:</strong></td>
+                                    <td style={{padding: '10px'}}>{quoteData.studentInfo.mobile}</td>
+                                </tr>
+                                <tr>
+                                    <td style={{padding: '10px'}}><strong>School:</strong></td>
+                                    <td style={{padding: '10px'}}>{quoteData.studentInfo.school}</td>
+                                </tr>
+                                <tr>
+                                    <td style={{padding: '10px'}}><strong>Teacher:</strong></td>
+                                    <td style={{padding: '10px'}}>{quoteData.studentInfo.teacher}</td>
+                                </tr>
+                                <tr>
+                                    <td style={{padding: '10px'}}><strong>Delivery Option:</strong></td>
+                                    <td style={{padding: '10px', fontWeight: 'bold', color: quoteData.deliveryOption === 'delivery' ? '#c9a47f' : '#055902'}}>
+                                        {quoteData.deliveryOption === 'delivery' ? 'DELIVERY REQUESTED' : 'PICKUP'}
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    {/* Original Document Section - NEW */}
+                    {quoteData.originalFile && (
+                        <div style={{background: 'white', border: '1px solid #e5e5e7', borderRadius: '12px', padding: '30px', marginBottom: '24px'}}>
+                            <h3 style={{color: '#055902', marginBottom: '20px', fontSize: '20px', borderBottom: '2px solid #f0f0f0', paddingBottom: '10px'}}>Original Uploaded Document</h3>
+                            <div style={{background: '#f0f9f0', border: '2px solid #055902', borderRadius: '12px', padding: '20px', marginTop: '20px'}}>
+                                <p><strong>Filename:</strong> {quoteData.originalFile.filename}</p>
+                                <p><strong>Type:</strong> {quoteData.originalFile.mimetype}</p>
+                                <button 
+                                    onClick={downloadOriginalFile}
+                                    style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '8px',
+                                        padding: '12px 24px',
+                                        background: '#055902',
+                                        color: 'white',
+                                        textDecoration: 'none',
+                                        borderRadius: '8px',
+                                        fontWeight: '600',
+                                        transition: 'background 0.2s',
+                                        marginTop: '15px',
+                                        border: 'none',
+                                        cursor: 'pointer'
+                                    }}
+                                    onMouseOver={(e) => e.target.style.background = '#044501'}
+                                    onMouseOut={(e) => e.target.style.background = '#055902'}
+                                >
+                                    📥 Download Original Excel File
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Components Section */}
+                    <div style={{background: 'white', border: '1px solid #e5e5e7', borderRadius: '12px', padding: '30px', marginBottom: '24px'}}>
+                        <h3 style={{color: '#055902', marginBottom: '20px', fontSize: '20px', borderBottom: '2px solid #f0f0f0', paddingBottom: '10px'}}>Components</h3>
+                        <table style={{width: '100%', borderCollapse: 'collapse'}}>
+                            <thead>
+                                <tr>
+                                    <th style={{background: '#f0f0f0', padding: '10px', textAlign: 'left', fontWeight: '600', borderBottom: '2px solid #ddd'}}>Species</th>
+                                    <th style={{background: '#f0f0f0', padding: '10px', textAlign: 'left', fontWeight: '600', borderBottom: '2px solid #ddd'}}>Dimensions</th>
+                                    <th style={{background: '#f0f0f0', padding: '10px', textAlign: 'left', fontWeight: '600', borderBottom: '2px solid #ddd'}}>Qty</th>
+                                    <th style={{background: '#f0f0f0', padding: '10px', textAlign: 'left', fontWeight: '600', borderBottom: '2px solid #ddd'}}>Linear M</th>
+                                    <th style={{background: '#f0f0f0', padding: '10px', textAlign: 'left', fontWeight: '600', borderBottom: '2px solid #ddd'}}>Price/LinM</th>
+                                    <th style={{background: '#f0f0f0', padding: '10px', textAlign: 'left', fontWeight: '600', borderBottom: '2px solid #ddd'}}>Subtotal</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {quoteData.components && quoteData.components.map((comp, idx) => (
+                                    <tr key={idx}>
+                                        <td style={{padding: '10px', borderBottom: '1px solid #eee'}}>{comp.species}</td>
+                                        <td style={{padding: '10px', borderBottom: '1px solid #eee'}}>{comp.thickness} x {comp.width} x {comp.length}mm</td>
+                                        <td style={{padding: '10px', borderBottom: '1px solid #eee'}}>{comp.quantity}</td>
+                                        <td style={{padding: '10px', borderBottom: '1px solid #eee'}}>{comp.linearMetersWithWaste}</td>
+                                        <td style={{padding: '10px', borderBottom: '1px solid #eee'}}>${comp.pricePerLinM}</td>
+                                        <td style={{padding: '10px', borderBottom: '1px solid #eee'}}>${comp.subtotal}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    {/* Totals Section */}
+                    <div style={{background: 'white', border: '1px solid #e5e5e7', borderRadius: '12px', padding: '30px', marginBottom: '24px'}}>
+                        <h3 style={{color: '#055902', marginBottom: '20px', fontSize: '20px', borderBottom: '2px solid #f0f0f0', paddingBottom: '10px'}}>Quote Totals</h3>
+                        <table>
+                            <tbody>
+                                <tr>
+                                    <td style={{padding: '10px'}}><strong>Subtotal:</strong></td>
+                                    <td style={{padding: '10px'}}>${quoteData.totals.subtotal}</td>
+                                </tr>
+                                <tr>
+                                    <td style={{padding: '10px'}}><strong>GST:</strong></td>
+                                    <td style={{padding: '10px'}}>${quoteData.totals.gst}</td>
+                                </tr>
+                                <tr>
+                                    <td style={{padding: '10px'}}><strong>Total:</strong></td>
+                                    <td style={{padding: '10px', fontSize: '18px', fontWeight: 'bold', color: '#055902'}}>
+                                        ${quoteData.totals.total}
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    {/* Approval Actions */}
+                    <div style={{background: '#f9f9f9', border: '1px solid #e5e5e7', borderRadius: '12px', padding: '30px', marginBottom: '24px'}}>
+                        <h3 style={{color: '#055902', marginBottom: '20px', fontSize: '20px', borderBottom: '2px solid #f0f0f0', paddingBottom: '10px'}}>Approval Actions</h3>
+                        
+                        <div className="form-group" style={{marginBottom: '24px'}}>
+                            <label style={{display: 'block', marginBottom: '8px', fontWeight: '600', color: '#1d1d1f'}}>Delivery Cost (if applicable):</label>
+                            <input 
+                                type="number"
+                                className="form-control"
+                                value={deliveryCost}
+                                onChange={(e) => setDeliveryCost(e.target.value)}
+                                placeholder="Enter delivery cost (leave 0 for pickup)"
+                                step="0.01"
+                                min="0"
+                                style={{width: '100%', padding: '12px', border: '1px solid #d2d2d7', borderRadius: '8px', fontSize: '16px'}}
+                            />
+                        </div>
+
+                        <div className="form-group" style={{marginBottom: '24px'}}>
+                            <label style={{display: 'block', marginBottom: '8px', fontWeight: '600', color: '#1d1d1f'}}>Internal Notes (optional):</label>
+                            <textarea 
+                                className="form-control"
+                                value={notes}
+                                onChange={(e) => setNotes(e.target.value)}
+                                placeholder="Any internal notes about this quote..."
+                                rows="3"
+                                style={{width: '100%', padding: '12px', border: '1px solid #d2d2d7', borderRadius: '8px', fontSize: '16px', minHeight: '100px', resize: 'vertical'}}
+                            />
+                        </div>
+
+                        <div className="button-group" style={{display: 'flex', gap: '12px', justifyContent: 'flex-end'}}>
+                            <button 
+                                onClick={() => window.close()}
+                                className="btn btn-secondary"
+                            >
+                                Cancel
+                            </button>
+                            <button 
+                                onClick={handleApprove}
+                                className="btn btn-success"
+                                disabled={loading}
+                                style={{background: '#055902', color: 'white'}}
+                            >
+                                Approve & Send to Customer
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        function ExcelUploadWizard() {
+            const [currentStep, setCurrentStep] = useState(1);
+            const [uploadedFile, setUploadedFile] = useState(null);
+            const [uploadedFileBase64, setUploadedFileBase64] = useState(null);
+            const [parsedData, setParsedData] = useState([]);
+            const [studentInfo, setStudentInfo] = useState({});
+            const [deliveryOption, setDeliveryOption] = useState('pickup'); // 'pickup' or 'delivery'
+            const [customerNotes, setCustomerNotes] = useState(''); // Customer notes for the quote
+            const [speciesOptions, setSpeciesOptions] = useState([]);
+            const [timberData, setTimberData] = useState(null);
+            const [matchingResults, setMatchingResults] = useState([]);
+            const [allConfirmed, setAllConfirmed] = useState(false);
+            const [loading, setLoading] = useState(false);
+            const [currentComponentIndex, setCurrentComponentIndex] = useState(0);
+            const [reviewedComponents, setReviewedComponents] = useState([]);
+            const [uploadError, setUploadError] = useState('');
+            const [validationErrors, setValidationErrors] = useState(null); // For detailed file validation errors
+            const fileInputRef = useRef(null);
+
+            // Species aliases and fuzzy matching data
+            const speciesAliases = {
+                'tasmanian oak': ['tas oak', 'tassie oak', 'oak tas', 'tasmanian', 'messmate', 'tassy oak'],
+                'american white oak': ['white oak', 'american oak white', 'usa white oak', 'us white oak', 'amer white oak'],
+                'american red oak': ['red oak', 'american oak red', 'usa red oak', 'us red oak', 'amer red oak'],
+                'nsw spotted gum': ['spotted gum', 'nsw spotted', 'spotted', 'gum', 'spot gum', 'spotty gum'],
+                'tasmanian blackwood': ['blackwood', 'tas blackwood', 'black wood', 'tassy blackwood'],
+                'radiata pine': ['pine', 'radiata', 'pine radiata', 'rad pine', 'radius pine'],
+                'hoop pine': ['hoop', 'pine hoop', 'hoopy'],
+                'fijian mahogany': ['mahogany', 'fiji mahogany', 'fijian', 'fiji'],
+                'western red cedar': ['cedar', 'red cedar', 'western cedar', 'wrc', 'west red cedar'],
+                'kauri pine': ['kauri', 'nz kauri', 'new zealand kauri', 'kauri nz']
+            };
+
+            // Load species from Google Sheets on component mount
+            useEffect(() => {
+                loadSpeciesData();
+            }, []);
+
+            const loadSpeciesData = async () => {
+                try {
+                    console.log('Loading timber data from:', CONFIG.GET_TIMBER_URL);
+                    const response = await fetch(CONFIG.GET_TIMBER_URL);
+                    const data = await response.json();
+                    
+                    console.log('Timber data response:', data);
+                    
+                    if (data.success) {
+                        // Store full timber data
+                        setTimberData(data);
+                        console.log('✅ Timber data loaded successfully!');
+                        console.log('Available timber specs:', Object.keys(data.timber));
+                        
+                        // Log sample timber spec to verify structure includes 'available' and 'notes'
+                        const firstKey = Object.keys(data.timber)[0];
+                        if (firstKey && data.timber[firstKey]) {
+                            console.log('📋 Sample timber spec structure:', firstKey, data.timber[firstKey]);
+                            if (data.timber[firstKey].availableWidths && data.timber[firstKey].availableWidths[0]) {
+                                console.log('📏 Sample width data:', data.timber[firstKey].availableWidths[0]);
+                                console.log('✓ Has "available" field:', 'available' in data.timber[firstKey].availableWidths[0]);
+                                console.log('✓ Has "notes" field:', 'notes' in data.timber[firstKey].availableWidths[0]);
+                            }
+                        }
+                        
+                        // Extract unique species names for matching
+                        const speciesSet = new Set();
+                        Object.keys(data.timber).forEach(key => {
+                            const species = key.split('_')[0];
+                            speciesSet.add(species);
+                        });
+                        const speciesList = Array.from(speciesSet);
+                        setSpeciesOptions(speciesList);
+                        console.log('Species options:', speciesList);
+                    } else {
+                        throw new Error('Failed to load timber data');
+                    }
+                } catch (error) {
+                    console.error('❌ Error loading species:', error);
+                    // Fallback species list
+                    setSpeciesOptions([
+                        'Tasmanian Oak',
+                        'American White Oak', 
+                        'American Red Oak',
+                        'NSW Spotted Gum',
+                        'Tasmanian Blackwood',
+                        'Radiata Pine',
+                        'Hoop Pine',
+                        'Fijian Mahogany',
+                        'Western Red Cedar',
+                        'Kauri Pine'
+                    ]);
+                    alert('Warning: Could not load live pricing data. Using fallback species list. Prices may not calculate correctly.');
+                }
+            };
+
+            const handleFileUpload = async (file) => {
+                if (!file) return;
+                
+                // Validate file type before processing
+                const validTypes = [
+                    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
+                    'application/vnd.ms-excel', // .xls
+                ];
+                const validExtensions = /\.(xlsx|xls)$/i;
+                
+                if (!validTypes.includes(file.type) && !validExtensions.test(file.name)) {
+                    setUploadError('This form only accepts Excel files (.xlsx or .xls). Please upload a valid Excel spreadsheet.');
+                    setLoading(false);
+                    setUploadedFile(null);
+                    return;
+                }
+                
+                // Clear any previous errors
+                setUploadError('');
+                setValidationErrors(null);
+                
+                setLoading(true);
+                
+                // CRITICAL: Always fetch fresh pricing data before processing the file
+                console.log('🔄 Fetching fresh pricing data...');
+                await loadSpeciesData();
+                console.log('✅ Fresh pricing data loaded!');
+                
+                // Read file as ArrayBuffer for parsing
+                const reader = new FileReader();
+                
+                // Also read file as base64 for attachment
+                const base64Reader = new FileReader();
+                base64Reader.onload = (e) => {
+                    const base64String = e.target.result.split(',')[1]; // Remove data:... prefix
+                    setUploadedFileBase64({
+                        data: base64String,
+                        filename: file.name,
+                        mimetype: file.type
+                    });
+                };
+                base64Reader.readAsDataURL(file);
+                
+                reader.onload = (e) => {
+                    try {
+                        const data = new Uint8Array(e.target.result);
+                        const workbook = XLSX.read(data, { type: 'array' });
+                        
+                        if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
+                            throw new Error('No sheets found in the Excel file');
+                        }
+                        
+                        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                        if (!firstSheet) {
+                            throw new Error('Could not read the first sheet');
+                        }
+                        
+                        const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
+                        
+                        if (!jsonData || jsonData.length === 0) {
+                            throw new Error('The Excel file appears to be empty');
+                        }
+                        
+                        console.log('Parsed Excel data:', jsonData);
+                        parseExcelData(jsonData);
+                        setUploadedFile(file);
+                        setCurrentComponentIndex(0); // Start reviewing first component
+                        setCurrentStep(3);
+                        setLoading(false);
+                    } catch (error) {
+                        console.error('Error parsing file:', error);
+                        alert(`Error reading file: ${error.message}\n\nPlease check:\n1. The file is a valid Excel/CSV file\n2. The file is not empty\n3. The file is not password protected`);
+                        setLoading(false);
+                    }
+                };
+                
+                reader.onerror = (error) => {
+                    console.error('FileReader error:', error);
+                    alert('Error reading file. Please try again.');
+                    setLoading(false);
+                };
+                
+                reader.readAsArrayBuffer(file);
+            };
+
+            const parseExcelData = (data) => {
+                console.log('Starting to parse Excel data, rows:', data.length);
+                const components = [];
+                let headerRow = -1;
+                let studentData = {};
+
+                // Find header row and extract student info
+                for (let i = 0; i < Math.min(data.length, 20); i++) {
+                    const row = data[i];
+                    if (!row || row.length === 0) continue;
+
+                    // Convert row to string for checking
+                    const rowStr = row.map(cell => String(cell || '')).join(' ').toLowerCase();
+                    
+                    // Check for student info - only capture actual student name
+                    if (rowStr.includes('student name:')) {
+                        const nameMatch = rowStr.match(/student name:\s*([^,]+)/i);
+                        if (nameMatch) {
+                            studentData.name = nameMatch[1].trim();
+                        }
+                    } else if (!studentData.name && rowStr.includes('name:') && !rowStr.includes('school') && !rowStr.includes('teacher')) {
+                        const nameMatch = rowStr.match(/name:\s*([^,]+)/i);
+                        if (nameMatch) {
+                            studentData.name = nameMatch[1].trim();
+                        }
+                    }
+                    
+                    if (rowStr.includes('email address:') || rowStr.includes('email:')) {
+                        const emailMatch = rowStr.match(/email(?:\s+address)?:\s*([^\s,]+@[^\s,]+)/i);
+                        if (emailMatch) {
+                            studentData.email = emailMatch[1].trim();
+                        }
+                    }
+                    
+                    // Also capture school and teacher if present
+                    if (rowStr.includes('school name:')) {
+                        const schoolMatch = rowStr.match(/school name:\s*([^,]+)/i);
+                        if (schoolMatch) {
+                            studentData.school = schoolMatch[1].trim();
+                        }
+                    }
+                    if (rowStr.includes('teacher name:')) {
+                        const teacherMatch = rowStr.match(/teacher name:\s*([^,]+)/i);
+                        if (teacherMatch) {
+                            studentData.teacher = teacherMatch[1].trim();
+                        }
+                    }
+                    
+                    // Extract mobile/phone number
+                    if (rowStr.includes('mobile:') || rowStr.includes('phone:') || rowStr.includes('mobile number:') || rowStr.includes('phone number:')) {
+                        const mobileMatch = rowStr.match(/(?:mobile|phone)(?: number)?:\s*([\d\s\+\(\)-]+)/i);
+                        if (mobileMatch) {
+                            studentData.mobile = mobileMatch[1].trim();
+                        }
+                    }
+
+                    // Find header row - look for 'species' column
+                    if (row.some(cell => cell && String(cell).toLowerCase().includes('species'))) {
+                        headerRow = i;
+                        console.log('Found header row at index:', i);
+                        break;
+                    }
+                }
+
+                if (headerRow === -1) {
+                    setValidationErrors({
+                        type: 'MISSING_HEADER',
+                        title: 'Missing Column Headers',
+                        message: 'Could not find a header row with "Species" column.',
+                        details: ['Your spreadsheet needs a row with column headers', 'Required columns: Species, Thickness, Width, Length, Quantity'],
+                        foundHeaders: data[0] ? data[0].slice(0, 10).filter(Boolean) : []
+                    });
+                    return;
+                }
+
+                // Parse headers
+                const headers = data[headerRow].map(h => String(h || '').toLowerCase().trim());
+                console.log('Headers found:', headers);
+                
+                const speciesCol = headers.findIndex(h => h.includes('species') || h === 'timber' || h === 'wood');
+                const thicknessCol = headers.findIndex(h => h.includes('thickness') || h === 'thick');
+                const widthCol = headers.findIndex(h => h.includes('width'));
+                const lengthCol = headers.findIndex(h => h.includes('length'));
+                const quantityCol = headers.findIndex(h => h.includes('quantity') || h.includes('qty'));
+
+                console.log('Column indices:', { speciesCol, thicknessCol, widthCol, lengthCol, quantityCol });
+
+                if (speciesCol === -1) {
+                    setValidationErrors({
+                        type: 'MISSING_SPECIES_COLUMN',
+                        title: 'Missing Species Column',
+                        message: 'Could not find a "Species" column in your spreadsheet.',
+                        details: ['Your spreadsheet must have a column named "Species" (or "Timber" or "Wood")'],
+                        foundHeaders: headers.filter(Boolean)
+                    });
+                    return;
+                }
+
+                // Parse components (limit to reasonable number for performance)
+                let validComponents = 0;
+                const maxComponents = 500; // Reasonable limit for browser performance
+                
+                for (let i = headerRow + 1; i < Math.min(data.length, headerRow + maxComponents + 1); i++) {
+                    const row = data[i];
+                    if (!row || row.length === 0) continue;
+                    
+                    const species = row[speciesCol] ? String(row[speciesCol]).trim() : '';
+                    if (!species) continue;
+
+                    const component = {
+                        id: Date.now() + i + Math.random(), // Add random to ensure unique IDs
+                        orderIndex: validComponents, // Add explicit order index
+                        originalSpecies: species,
+                        thickness: thicknessCol !== -1 ? parseFloat(row[thicknessCol]) || 0 : 0,
+                        width: widthCol !== -1 ? parseFloat(row[widthCol]) || 0 : 0,
+                        length: lengthCol !== -1 ? parseFloat(row[lengthCol]) || 0 : 0,
+                        quantity: quantityCol !== -1 ? parseInt(row[quantityCol]) || 1 : 1
+                    };
+
+                    components.push(component);
+                    validComponents++;
+                }
+
+                console.log(`Parsed ${validComponents} valid components`);
+                
+                if (data.length > headerRow + maxComponents + 1) {
+                    console.warn(`File has ${data.length} rows but only processing first ${maxComponents} data rows for performance`);
+                }
+
+                if (components.length === 0) {
+                    setValidationErrors({
+                        type: 'NO_COMPONENTS',
+                        title: 'No Component Data Found',
+                        message: 'Could not find any valid component rows in your spreadsheet.',
+                        details: [
+                            'Each row after the header should have a Species value',
+                            'Rows with empty Species cells are skipped'
+                        ],
+                        foundHeaders: headers.filter(Boolean)
+                    });
+                    return;
+                }
+
+                // Validate required student fields
+                const missingFields = [];
+                if (!studentData.name) missingFields.push('Student Name');
+                if (!studentData.email) missingFields.push('Email Address');
+                if (!studentData.mobile) missingFields.push('Mobile Number');
+                if (!studentData.school) missingFields.push('School Name');
+                if (!studentData.teacher) missingFields.push('Teacher Name');
+                
+                if (missingFields.length > 0) {
+                    setValidationErrors({
+                        type: 'MISSING_STUDENT_INFO',
+                        title: 'Missing Student Information',
+                        message: 'Your spreadsheet is missing required student details.',
+                        details: missingFields.map(f => `Missing: ${f}`),
+                        requiredFormat: [
+                            'Student Name: Your Name',
+                            'Email Address: your.email@example.com',
+                            'Mobile Number: 04XX XXX XXX',
+                            'School Name: Your School',
+                            'Teacher Name: Mr/Ms Teacher'
+                        ]
+                    });
+                    return;
+                }
+
+                setStudentInfo(studentData);
+                setParsedData(components);
+                performMatching(components);
+            };
+
+            const performMatching = (components) => {
+                const results = components.map(comp => {
+                    const match = findBestMatch(comp.originalSpecies);
+                    return {
+                        ...comp,
+                        ...match,
+                        confirmed: match.confidence === 100
+                    };
+                });
+                setMatchingResults(results);
+            };
+
+            const findBestMatch = (inputSpecies) => {
+                const input = inputSpecies.toLowerCase().trim();
+                
+                // Check for exact match
+                const exactMatch = speciesOptions.find(s => s.toLowerCase() === input);
+                if (exactMatch) {
+                    return {
+                        matchedSpecies: exactMatch,
+                        confidence: 100,
+                        suggestions: [exactMatch]
+                    };
+                }
+
+                // Check aliases
+                for (const [species, aliases] of Object.entries(speciesAliases)) {
+                    if (aliases.includes(input)) {
+                        const properName = speciesOptions.find(s => s.toLowerCase() === species);
+                        return {
+                            matchedSpecies: properName || species,
+                            confidence: 90,
+                            suggestions: [properName || species]
+                        };
+                    }
+                }
+
+                // Fuzzy matching
+                const suggestions = [];
+                for (const species of speciesOptions) {
+                    const speciesLower = species.toLowerCase();
+                    
+                    // Partial match
+                    if (speciesLower.includes(input) || input.includes(speciesLower)) {
+                        suggestions.push(species);
+                    }
+                    
+                    // Word matching
+                    const inputWords = input.split(/\s+/);
+                    const speciesWords = speciesLower.split(/\s+/);
+                    const commonWords = inputWords.filter(w => speciesWords.includes(w));
+                    
+                    if (commonWords.length > 0) {
+                        suggestions.push(species);
+                    }
+                }
+
+                // Remove duplicates
+                const uniqueSuggestions = [...new Set(suggestions)];
+
+                if (uniqueSuggestions.length === 1) {
+                    return {
+                        matchedSpecies: uniqueSuggestions[0],
+                        confidence: 80,
+                        suggestions: uniqueSuggestions
+                    };
+                } else if (uniqueSuggestions.length > 1) {
+                    return {
+                        matchedSpecies: uniqueSuggestions[0],
+                        confidence: 60,
+                        suggestions: uniqueSuggestions
+                    };
+                }
+
+                return {
+                    matchedSpecies: '',
+                    confidence: 0,
+                    suggestions: speciesOptions
+                };
+            };
+
+            const handleSpeciesChange = (componentId, newSpecies) => {
+                setMatchingResults(prev => prev.map(item => 
+                    item.id === componentId 
+                        ? { ...item, matchedSpecies: newSpecies, confirmed: true }
+                        : item
+                ));
+            };
+
+            const acceptAllHighConfidence = () => {
+                setMatchingResults(prev => prev.map(item => 
+                    item.confidence >= 80 
+                        ? { ...item, confirmed: true }
+                        : item
+                ));
+            };
+
+            const applyToAllSimilar = (originalSpecies, matchedSpecies) => {
+                setMatchingResults(prev => prev.map(item => 
+                    item.originalSpecies.toLowerCase() === originalSpecies.toLowerCase()
+                        ? { ...item, matchedSpecies, confirmed: true }
+                        : item
+                ));
+            };
+
+            // ============================================
+            // HELPER FUNCTIONS FOR VALIDATION & FIXES
+            // ============================================
+            const findClosestThickness = (species, requestedThickness) => {
+                if (!timberData || !timberData.timber) return null;
+                
+                const availableThicknesses = Object.keys(timberData.timber)
+                    .filter(key => key.startsWith(species + '_'))
+                    .map(key => parseInt(key.split('_')[1].replace('mm', '')))
+                    .sort((a, b) => a - b);
+                
+                if (availableThicknesses.length === 0) return null;
+                
+                // Find closest (prefer thicker over thinner)
+                const thicker = availableThicknesses.filter(t => t >= requestedThickness);
+                const thinner = availableThicknesses.filter(t => t < requestedThickness);
+                
+                let closest = [];
+                if (thicker.length > 0) {
+                    closest.push({ thickness: thicker[0], diff: thicker[0] - requestedThickness, type: 'thicker' });
+                }
+                if (thinner.length > 0) {
+                    const thin = thinner[thinner.length - 1];
+                    closest.push({ thickness: thin, diff: requestedThickness - thin, type: 'thinner' });
+                }
+                
+                return {
+                    available: availableThicknesses,
+                    suggestions: closest.sort((a, b) => a.diff - b.diff)
+                };
+            };
+
+            const applyThicknessFix = (componentId, newThickness) => {
+                console.log('🔧 Applying thickness fix:', componentId, 'to', newThickness + 'mm');
+                setMatchingResults(prev => {
+                    const updated = prev.map(item => {
+                        if (item.id === componentId) {
+                            console.log('✅ Updated component from', item.thickness, 'to', newThickness);
+                            return {
+                                ...item,
+                                thickness: newThickness,
+                                thicknessFixed: true
+                            };
+                        }
+                        return item;
+                    });
+                    console.log('Updated matchingResults:', updated);
+                    return updated;
+                });
+            };
+
+            const applySplitLength = (componentId, numPieces, suggestedLength) => {
+                console.log('✂️ Splitting component:', componentId, 'into', numPieces, 'pieces of', suggestedLength + 'mm');
+                setMatchingResults(prev => {
+                    return prev.map(item => {
+                        if (item.id === componentId) {
+                            console.log('✅ Updated component - changing length from', item.length, 'to', suggestedLength, 'and quantity to', item.quantity * numPieces);
+                            return {
+                                ...item,
+                                length: suggestedLength,
+                                quantity: item.quantity * numPieces,
+                                originalLength: item.length,
+                                wasSplit: true,
+                                splitInfo: `Split from ${item.length}mm into ${numPieces} pieces`
+                            };
+                        }
+                        return item;
+                    });
+                });
+            };
+
+            const removeComponent = (componentId) => {
+                setMatchingResults(prev => prev.filter(item => item.id !== componentId));
+            };
+
+            const getValidationStatus = (component) => {
+                if (!timberData) return { valid: false, checks: [] };
+                
+                const checks = [];
+                const species = component.matchedSpecies;
+                
+                // Check 1: Thickness available
+                const thicknessKey = `${species}_${component.thickness}mm`;
+                const thicknessAvailable = timberData.timber[thicknessKey] !== undefined;
+                
+                if (thicknessAvailable) {
+                    checks.push({
+                        type: 'success',
+                        icon: '',
+                        title: 'Thickness Available'
+                    });
+                } else {
+                    const alternatives = findClosestThickness(species, component.thickness);
+                    checks.push({
+                        type: 'error',
+                        icon: '',
+                        title: 'Thickness Not Available',
+                        alternatives: alternatives
+                    });
+                }
+                
+                // Check 2 & 3: Calculate width and length
+                if (thicknessAvailable) {
+                    const timberSpec = timberData.timber[thicknessKey];
+                    const maxLength = timberSpec.maxLength;
+                    
+                    // Check if length exceeds max
+                    if (component.length > maxLength) {
+                        // Suggest splitting into multiple shorter pieces
+                        const numPieces = Math.ceil(component.length / maxLength);
+                        const suggestedLength = Math.ceil(component.length / numPieces / 100) * 100; // Round up to nearest 100mm
+                        
+                        checks.push({
+                            type: 'error',
+                            icon: '',
+                            title: 'Length Exceeds Maximum',
+                            lengthSplit: {
+                                numPieces: numPieces,
+                                suggestedLength: suggestedLength,
+                                originalLength: component.length,
+                                maxLength: maxLength
+                            }
+                        });
+                    } else {
+                        // Length is OK, now check width
+                        const calculated = calculateComponent(component, timberData);
+                        
+                        if (calculated && !calculated.error) {
+                            checks.push({
+                                type: 'success',
+                                icon: '',
+                                title: 'Width Solution Found',
+                                calculated: calculated,
+                                timberSpec: timberSpec
+                            });
+                            
+                            checks.push({
+                                type: 'success',
+                                icon: '',
+                                title: 'Length OK'
+                            });
+                        } else if (calculated && calculated.error) {
+                            checks.push({
+                                type: 'error',
+                                icon: '',
+                                title: calculated.notAvailable ? 'Width Not Available' : 'Cannot Calculate Width',
+                                detail: calculated.lengthError,
+                                availableAlternatives: calculated.availableAlternatives || null,
+                                notAvailable: calculated.notAvailable || false
+                            });
+                        }
+                    }
+                }
+                
+                const allValid = checks.every(c => c.type === 'success');
+                return { valid: allValid, checks, calculated: checks.find(c => c.calculated)?.calculated };
+            };
+
+            // ============================================
+            // CALCULATION FUNCTIONS
+            // ============================================
+            const calculateComponent = (comp, timber) => {
+                // Validate input
+                if (!comp) {
+                    console.error('No component provided');
+                    return { error: true, lengthError: 'No component data' };
+                }
+
+                const species = comp.matchedSpecies || comp.species;
+                
+                if (!species || !comp.thickness || !comp.width || !comp.length || !comp.quantity) {
+                    console.error('Missing required fields:', { species, thickness: comp.thickness, width: comp.width, length: comp.length, quantity: comp.quantity });
+                    return { 
+                        error: true, 
+                        lengthError: `Missing data - Species: ${species || 'NO'}, Thickness: ${comp.thickness || 'NO'}, Width: ${comp.width || 'NO'}, Length: ${comp.length || 'NO'}, Qty: ${comp.quantity || 'NO'}`
+                    };
+                }
+
+                if (!timber || !timber.timber) {
+                    console.error('Timber data not available');
+                    return { error: true, lengthError: 'Timber pricing data not loaded' };
+                }
+
+                const key = `${species}_${comp.thickness}mm`;
+                const timberSpec = timber.timber[key];
+
+                console.log(`Looking for timber spec: ${key}`, timberSpec ? 'FOUND' : 'NOT FOUND');
+
+                if (!timberSpec) {
+                    const availableKeys = Object.keys(timber.timber).filter(k => k.startsWith(species));
+                    console.error(`Timber spec not found for ${key}. Available for this species:`, availableKeys);
+                    return { 
+                        error: true, 
+                        lengthError: `${species} ${comp.thickness}mm not available in our system. Available thicknesses: ${availableKeys.map(k => k.split('_')[1]).join(', ') || 'none'}`
+                    };
+                }
+
+                const finishedWidth = parseInt(comp.width);
+                const requestedLength = parseInt(comp.length);
+                const quantity = parseInt(comp.quantity);
+                const KERF = 6; // mm blade kerf
+
+                // Check if length exceeds maximum
+                if (requestedLength > timberSpec.maxLength) {
+                    return {
+                        error: true,
+                        lengthError: `Length ${requestedLength}mm exceeds maximum ${timberSpec.maxLength}mm`
+                    };
+                }
+
+                // Round length to nearest 100mm
+                const roundedLength = Math.ceil(requestedLength / 100) * 100;
+
+                // Get available widths for this species/thickness - ONLY those marked as available
+                const allWidths = timberSpec.availableWidths || [];
+                const availableWidthObjects = allWidths.filter(w => w.available === true || w.available === 'TRUE' || w.available === 'true');
+                
+                // Create a map for easy lookup: width -> full object with price
+                const widthMap = {};
+                allWidths.forEach(w => {
+                    widthMap[w.width] = w;
+                });
+                
+                const availableWidthNumbers = availableWidthObjects.map(w => w.width).sort((a, b) => a - b);
+                
+                // Find the exact width spec if it exists
+                const exactWidthSpec = widthMap[finishedWidth];
+                
+                // Check if requested width exists but is not available
+                if (exactWidthSpec && !exactWidthSpec.available) {
+                    return {
+                        error: true,
+                        notAvailable: true,
+                        requestedWidth: finishedWidth,
+                        lengthError: `${species} ${comp.thickness}mm × ${finishedWidth}mm is currently not available. Please select from available widths or choose a different species.`,
+                        availableAlternatives: availableWidthNumbers
+                    };
+                }
+
+                let bestOption = null;
+                let minWaste = Infinity;
+
+                // Try to find exact match first
+                if (availableWidthNumbers.includes(finishedWidth)) {
+                    const widthSpec = widthMap[finishedWidth];
+                    bestOption = {
+                        stockWidth: finishedWidth,
+                        piecesPerStockBoard: 1,
+                        totalStockPieces: quantity,
+                        widthWaste: 0,
+                        nestingNote: `Using ${finishedWidth}mm boards (exact match)`,
+                        pricePerLinM: widthSpec.pricePerLinM || 0, // ✅ GET PRICE FROM WIDTH
+                        notes: widthSpec.notes || null
+                    };
+                } else {
+                    // Try each available stock width
+                    availableWidthNumbers.forEach(stockWidth => {
+                        const widthSpec = widthMap[stockWidth]; // Get the full width object
+                        const price = widthSpec.pricePerLinM || 0; // ✅ GET PRICE FROM WIDTH
+                        
+                        if (stockWidth >= finishedWidth) {
+                            // SCENARIO 1: Nesting possible
+                            const piecesPerBoard = Math.floor((stockWidth + KERF) / (finishedWidth + KERF));
+                            
+                            if (piecesPerBoard >= 1) {
+                                const totalStockPieces = Math.ceil(quantity / piecesPerBoard);
+                                const usedWidth = finishedWidth * piecesPerBoard + KERF * (piecesPerBoard - 1);
+                                const waste = stockWidth - usedWidth;
+                                
+                                const score = totalStockPieces * 1000 + waste;
+                                
+                                if (score < minWaste) {
+                                    minWaste = score;
+                                    const nestingInfo = piecesPerBoard > 1 
+                                        ? `Can cut ${piecesPerBoard} pieces per board`
+                                        : `Using ${stockWidth}mm boards`;
+                                    
+                                    bestOption = {
+                                        stockWidth: stockWidth,
+                                        piecesPerStockBoard: piecesPerBoard,
+                                        totalStockPieces: totalStockPieces,
+                                        widthWaste: waste,
+                                        nestingNote: nestingInfo,
+                                        pricePerLinM: price, // ✅ USE PRICE FROM WIDTH
+                                        notes: widthSpec.notes || null
+                                    };
+                                }
+                            }
+                        } else {
+                            // SCENARIO 2: Need multiple boards glued
+                            const boardsPerComponent = Math.ceil(finishedWidth / stockWidth);
+                            const totalStockPieces = quantity * boardsPerComponent;
+                            const totalWidth = boardsPerComponent * stockWidth;
+                            const waste = totalWidth - finishedWidth;
+                            
+                            const score = totalStockPieces * 1000 + waste;
+                            
+                            if (score < minWaste) {
+                                minWaste = score;
+                                bestOption = {
+                                    stockWidth: stockWidth,
+                                    piecesPerStockBoard: 1,
+                                    boardsPerComponent: boardsPerComponent,
+                                    totalStockPieces: totalStockPieces,
+                                    widthWaste: waste,
+                                    nestingNote: `Requires ${boardsPerComponent} pieces of ${stockWidth}mm glued`,
+                                    pricePerLinM: price, // ✅ USE PRICE FROM WIDTH
+                                    notes: widthSpec.notes || null
+                                };
+                            }
+                        }
+                    });
+                }
+
+                if (!bestOption) {
+                    return {
+                        error: true,
+                        lengthError: 'No suitable width combination available'
+                    };
+                }
+
+                // Calculate pricing - USE PRICE FROM BEST OPTION (width-specific)
+                const totalPieces = bestOption.totalStockPieces;
+                const linearMeters = (roundedLength / 1000) * totalPieces;
+                const pricePerLinM = bestOption.pricePerLinM || 0; // ✅ GET FROM WIDTH
+                
+                // Wastage: 15% for ≤1500mm, 20% for >1500mm
+                const wastagePercent = requestedLength <= 1500 ? 15 : 20;
+                const linearMetersWithWaste = linearMeters * (1 + wastagePercent / 100);
+                
+                const subtotal = linearMetersWithWaste * pricePerLinM;
+
+                return {
+                    error: false,
+                    roundedLength,
+                    stockWidth: bestOption.stockWidth,
+                    piecesPerStockBoard: bestOption.piecesPerStockBoard,
+                    totalStockPieces: totalPieces,
+                    widthWaste: bestOption.widthWaste,
+                    nestingNote: bestOption.nestingNote,
+                    notes: bestOption.notes || null,
+                    linearMeters: linearMeters.toFixed(2),
+                    linearMetersWithWaste: linearMetersWithWaste.toFixed(2),
+                    wastagePercent: wastagePercent,
+                    pricePerLinM: pricePerLinM.toFixed(2), // ✅ FROM WIDTH
+                    subtotal: subtotal.toFixed(2)
+                };
+            };
+
+            const calculateTotals = (components) => {
+                const subtotal = components.reduce((sum, comp) => {
+                    return sum + (comp.calculated && !comp.calculated.error ? parseFloat(comp.calculated.subtotal) : 0);
+                }, 0);
+
+                const gst = subtotal * 0.10;
+                const total = subtotal + gst;
+
+                return {
+                    subtotal: subtotal.toFixed(2),
+                    gst: gst.toFixed(2),
+                    total: total.toFixed(2)
+                };
+            };
+
+            const handleFinalSubmit = async () => {
+                setLoading(true);
+                
+                console.log('📤 SUBMITTING - Current matchingResults:', matchingResults);
+                
+                try {
+                    // Validate timber data is loaded
+                    if (!timberData || !timberData.timber) {
+                        alert('Error: Timber pricing data not loaded. Please refresh the page and try again.');
+                        setLoading(false);
+                        return;
+                    }
+
+                    // Validate we have components
+                    if (!matchingResults || matchingResults.length === 0) {
+                        alert('Error: No components to submit. Please upload a file first.');
+                        setLoading(false);
+                        return;
+                    }
+
+                    console.log('Timber data available:', Object.keys(timberData.timber).length, 'species');
+                    console.log('Validating', matchingResults.length, 'components...');
+
+                    // Validate and calculate all components
+                    const validatedComponents = matchingResults.map((item, index) => {
+                        const validation = getValidationStatus(item);
+                        console.log(`Component ${index + 1} validation:`, validation.valid ? 'VALID' : 'INVALID');
+                        return {
+                            ...item,
+                            validation,
+                            calculated: validation.calculated
+                        };
+                    });
+
+                    // Filter to only valid components
+                    const validComponents = validatedComponents.filter(c => c.validation.valid);
+                    const invalidComponents = validatedComponents.filter(c => !c.validation.valid);
+
+                    console.log(`Valid: ${validComponents.length}, Invalid: ${invalidComponents.length}`);
+
+                    if (validComponents.length === 0) {
+                        alert('Cannot submit: No valid components. Please fix the errors shown above.');
+                        setLoading(false);
+                        return;
+                    }
+
+                    if (invalidComponents.length > 0) {
+                        alert(`Cannot submit: ${invalidComponents.length} component(s) still have errors. Please fix all errors before submitting.`);
+                        setLoading(false);
+                        return;
+                    }
+
+                    // Calculate totals
+                    const totals = calculateTotals(validComponents);
+
+                    console.log('Totals calculated:', totals);
+
+                    // Build submission data with calculations
+                    const quoteData = {
+                        studentInfo: {
+                            name: studentInfo.name || '',
+                            email: studentInfo.email || '',
+                            mobile: studentInfo.mobile || '',
+                            school: studentInfo.school || '',
+                            teacher: studentInfo.teacher || ''
+                        },
+                        deliveryOption: deliveryOption, // 'pickup' or 'delivery'
+                        customerNotes: customerNotes, // Customer notes for Trend Timbers
+                        components: validComponents.map(c => ({
+                            species: c.matchedSpecies,
+                            thickness: c.thickness,
+                            width: c.width,
+                            length: c.length,
+                            quantity: c.quantity,
+                            roundedLength: c.calculated?.roundedLength,
+                            stockWidth: c.calculated?.stockWidth,
+                            piecesPerStockBoard: c.calculated?.piecesPerStockBoard,
+                            totalStockPieces: c.calculated?.totalStockPieces,
+                            widthWaste: c.calculated?.widthWaste,
+                            nestingNote: c.calculated?.nestingNote,
+                            linearMeters: c.calculated?.linearMeters,
+                            linearMetersWithWaste: c.calculated?.linearMetersWithWaste,
+                            wastagePercent: c.calculated?.wastagePercent,
+                            pricePerLinM: c.calculated?.pricePerLinM,
+                            subtotal: c.calculated?.subtotal
+                        })),
+                        totals,
+                        uploadMethod: 'excel',
+                        timestamp: new Date().toISOString(),
+                        // Include original uploaded file for verification
+                        originalFile: uploadedFileBase64 ? {
+                            filename: uploadedFileBase64.filename,
+                            mimetype: uploadedFileBase64.mimetype,
+                            data: uploadedFileBase64.data
+                        } : null
+                    };
+
+                    console.log('Submitting calculated quote:', quoteData);
+                    
+                    const response = await fetch(CONFIG.SUBMIT_QUOTE_URL, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(quoteData)
+                    });
+
+                    console.log('Response status:', response.status);
+                    
+                    if (response.ok) {
+                        // Try to parse as JSON, fall back to text
+                        let responseData;
+                        try {
+                            const text = await response.text();
+                            responseData = text ? JSON.parse(text) : {};
+                        } catch (e) {
+                            console.log('Response is not JSON:', e);
+                            responseData = {};
+                        }
+                        console.log('Response data:', responseData);
+                        
+                        // Navigate to success page
+                        setCurrentStep(4);
+                    } else {
+                        let errorMessage = `Server error (${response.status})`;
+                        try {
+                            const errorData = await response.text();
+                            console.error('Error response:', errorData);
+                            if (errorData) {
+                                errorMessage += `: ${errorData}`;
+                            }
+                        } catch (e) {
+                            console.error('Could not parse error response');
+                        }
+                        throw new Error(errorMessage);
+                    }
+                } catch (error) {
+                    console.error('Error submitting:', error);
+                    
+                    let userMessage = 'Error submitting quote. ';
+                    if (error.message.includes('500')) {
+                        userMessage += 'The server encountered an error.';
+                    } else if (error.message.includes('404')) {
+                        userMessage += 'The webhook endpoint was not found.';
+                    } else if (error.message.includes('Failed to fetch')) {
+                        userMessage += 'Could not connect to the server.';
+                    } else {
+                        userMessage += error.message;
+                    }
+                    
+                    alert(userMessage);
+                }
+                setLoading(false);
+            };
+
+            const renderStep1 = () => (
+                <div className="instructions-container">
+                    <h2 style={{marginBottom: '30px', color: '#055902'}}>Instructions for Student Quotes</h2>
+                    
+                    <div className="instruction-card">
+                        <h3>Step 1:</h3>
+                        <p>Make a copy of the "Student Cutting List" Google Sheets form and fill it out with your project details.</p>
+                        <p style={{marginTop: '10px'}}>(Need help? <a href="#example-layout" style={{color: '#055902', textDecoration: 'underline'}}>View the example layout HERE</a>)</p>
+                    </div>
+
+                    <div className="instruction-card">
+                        <h3>Step 2:</h3>
+                        <p>Upload your cutting list (xlsx, xls, csv format) to our quotes form (you are here)</p>
+                    </div>
+
+                    <div className="instruction-card">
+                        <h3>Step 3:</h3>
+                        <p>We'll review your form and email you a quote for the timber, along with an estimated completion time.</p>
+                    </div>
+
+                    <div className="instruction-card">
+                        <h3>Step 4:</h3>
+                        <p>If you're happy with the quote, please call us on (02) 4577 5277 to organise payment.</p>
+                    </div>
+
+                    <div className="instruction-card">
+                        <h3>Step 5:</h3>
+                        <p>Need to make changes? Just reply to our email with an updated cutting list.</p>
+                    </div>
+
+                    <div className="instruction-card">
+                        <h3>Step 6:</h3>
+                        <p>Once payment is received, your project will be placed in our milling queue. We'll contact you when it's ready for pickup, or send tracking details if you've opted for delivery.</p>
+                    </div>
+
+                    <div className="instruction-card">
+                        <h3>Step 7:</h3>
+                        <p>You will receive a final invoice and documentation upon completion of milling.</p>
+                    </div>
+
+                    <div className="instruction-card" style={{background: '#fff3cd', border: '2px solid #856404'}}>
+                        <h3 style={{color: '#856404'}}>Important Notes</h3>
+                        <ul style={{marginLeft: '20px', marginTop: '10px'}}>
+                            <li>Your order will not enter the milling queue until full payment is made.</li>
+                            <li>We do not offer queue skipping – please don't ask.</li>
+                        </ul>
+                    </div>
+
+                    <div id="example-layout" style={{marginTop: '30px', padding: '20px', background: '#f8f9fa', borderRadius: '10px'}}>
+                        <h3 style={{color: '#055902', marginBottom: '15px'}}>Example Layout</h3>
+                        <img 
+                            src="https://trendtimbers.com.au/wp-content/uploads/2025/11/Student-Cutting-List-Template-IMAGE.png" 
+                            alt="Student Cutting List Template Example"
+                            style={{width: '100%', maxWidth: '800px', height: 'auto', border: '1px solid #dee2e6', borderRadius: '5px'}}
+                        />
+                    </div>
+
+                    <div className="button-group">
+                        <button 
+                            className="btn btn-secondary"
+                            onClick={() => {
+                                window.open('https://docs.google.com/spreadsheets/d/1WZacVz1JILqts_5--3FZFpjhU2WTYX3x/edit?gid=1164802154#gid=1164802154', '_blank');
+                            }}
+                        >
+                            Download Template
+                        </button>
+                        <button 
+                            className="btn btn-primary"
+                            onClick={() => setCurrentStep(2)}
+                        >
+                            I have my file ready
+                        </button>
+                    </div>
+                </div>
+            );
+
+            const renderStep2 = () => (
+                <div>
+                    <div 
+                        className="upload-zone"
+                        onDrop={(e) => {
+                            e.preventDefault();
+                            const file = e.dataTransfer.files[0];
+                            handleFileUpload(file);
+                        }}
+                        onDragOver={(e) => {
+                            e.preventDefault();
+                            e.currentTarget.classList.add('drag-over');
+                        }}
+                        onDragLeave={(e) => {
+                            e.currentTarget.classList.remove('drag-over');
+                        }}
+                        onClick={() => fileInputRef.current?.click()}
+                    >
+                        <div className="upload-icon">Upload File</div>
+                        <h3>Drag & Drop Your Excel File Here</h3>
+                        <p>or click to browse</p>
+                        <div className="file-types">
+                            <span className="file-type-badge">.xlsx</span>
+                            <span className="file-type-badge">.xls</span>
+                            <span className="file-type-badge">.csv</span>
+                        </div>
+                    </div>
+
+                    <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept=".xlsx,.xls,.csv"
+                        style={{ display: 'none' }}
+                        onChange={(e) => handleFileUpload(e.target.files[0])}
+                    />
+
+                    {uploadError && (
+                        <div style={{
+                            marginTop: '24px',
+                            padding: '16px 20px',
+                            background: '#fff3cd',
+                            border: '1px solid #ffc107',
+                            borderRadius: '8px',
+                            color: '#856404',
+                            fontSize: '16px',
+                            textAlign: 'center'
+                        }}>
+                            {uploadError}
+                        </div>
+                    )}
+
+                    {/* Detailed Validation Errors */}
+                    {validationErrors && (
+                        <div style={{
+                            marginTop: '24px',
+                            background: 'white',
+                            border: '2px solid #dc3545',
+                            borderRadius: '12px',
+                            overflow: 'hidden'
+                        }}>
+                            {/* Error Header */}
+                            <div style={{
+                                background: '#dc3545',
+                                color: 'white',
+                                padding: '20px',
+                                textAlign: 'center'
+                            }}>
+                                <div style={{fontSize: '40px', marginBottom: '10px'}}>⚠️</div>
+                                <h3 style={{margin: 0, fontSize: '22px'}}>{validationErrors.title}</h3>
+                            </div>
+                            
+                            {/* Error Body */}
+                            <div style={{padding: '24px'}}>
+                                <p style={{fontSize: '16px', marginBottom: '20px', color: '#333'}}>
+                                    {validationErrors.message}
+                                </p>
+                                
+                                {/* Error Details */}
+                                {validationErrors.details && validationErrors.details.length > 0 && (
+                                    <div style={{
+                                        background: '#f8d7da',
+                                        padding: '16px',
+                                        borderRadius: '8px',
+                                        marginBottom: '20px'
+                                    }}>
+                                        <strong style={{color: '#721c24'}}>What went wrong:</strong>
+                                        <ul style={{margin: '10px 0 0 20px', color: '#721c24'}}>
+                                            {validationErrors.details.map((detail, idx) => (
+                                                <li key={idx} style={{marginBottom: '5px'}}>{detail}</li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                )}
+                                
+                                {/* Found Headers */}
+                                {validationErrors.foundHeaders && validationErrors.foundHeaders.length > 0 && (
+                                    <div style={{
+                                        background: '#e9ecef',
+                                        padding: '16px',
+                                        borderRadius: '8px',
+                                        marginBottom: '20px'
+                                    }}>
+                                        <strong>What we found in your file:</strong>
+                                        <div style={{marginTop: '10px', fontFamily: 'monospace', fontSize: '13px'}}>
+                                            {validationErrors.foundHeaders.join(' | ')}
+                                        </div>
+                                    </div>
+                                )}
+                                
+                                {/* Required Format */}
+                                {validationErrors.requiredFormat && (
+                                    <div style={{
+                                        background: '#d4edda',
+                                        padding: '16px',
+                                        borderRadius: '8px',
+                                        marginBottom: '20px',
+                                        border: '1px solid #c3e6cb'
+                                    }}>
+                                        <strong style={{color: '#155724'}}>Required format in your spreadsheet:</strong>
+                                        <ul style={{margin: '10px 0 0 20px', color: '#155724'}}>
+                                            {validationErrors.requiredFormat.map((item, idx) => (
+                                                <li key={idx} style={{marginBottom: '5px', fontFamily: 'monospace'}}>{item}</li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                )}
+                                
+                                {/* Action Buttons */}
+                                <div style={{display: 'flex', gap: '12px', flexWrap: 'wrap', marginTop: '24px'}}>
+                                    <button
+                                        onClick={() => {
+                                            setValidationErrors(null);
+                                            fileInputRef.current?.click();
+                                        }}
+                                        style={{
+                                            flex: 1,
+                                            padding: '14px 24px',
+                                            background: '#055902',
+                                            color: 'white',
+                                            border: 'none',
+                                            borderRadius: '8px',
+                                            fontSize: '16px',
+                                            fontWeight: '600',
+                                            cursor: 'pointer'
+                                        }}
+                                    >
+                                        Try Another File
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            window.open('https://docs.google.com/spreadsheets/d/1WZacVz1JILqts_5--3FZFpjhU2WTYX3x/copy', '_blank');
+                                        }}
+                                        style={{
+                                            flex: 1,
+                                            padding: '14px 24px',
+                                            background: '#c9a47f',
+                                            color: 'white',
+                                            border: 'none',
+                                            borderRadius: '8px',
+                                            fontSize: '16px',
+                                            fontWeight: '600',
+                                            cursor: 'pointer'
+                                        }}
+                                    >
+                                        📄 Get Our Template
+                                    </button>
+                                </div>
+                                
+                                <p style={{
+                                    marginTop: '16px',
+                                    fontSize: '13px',
+                                    color: '#666',
+                                    textAlign: 'center'
+                                }}>
+                                    Need help? Call us on <strong>(02) 4577 5277</strong>
+                                </p>
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="button-group">
+                        <button 
+                            className="btn btn-secondary"
+                            onClick={() => {
+                                setUploadError('');
+                                setValidationErrors(null);
+                                setCurrentStep(1);
+                            }}
+                        >
+                            Back to Instructions
+                        </button>
+                    </div>
+                </div>
+            );
+
+            // Check if all items are confirmed - moved to component level
+            useEffect(() => {
+                const allConfirmedCheck = matchingResults.every(r => r.confirmed && r.matchedSpecies);
+                setAllConfirmed(allConfirmedCheck);
+            }, [matchingResults]);
+
+            const renderStep3 = () => {
+                // Sort components to maintain upload order
+                const sortedComponents = [...matchingResults].sort((a, b) => 
+                    (a.orderIndex || 0) - (b.orderIndex || 0)
+                );
+                
+                // Check if we're on the final summary page or reviewing individual components
+                const isFinalSummary = currentComponentIndex >= sortedComponents.length;
+                
+                // If we're on final summary, show all components
+                if (isFinalSummary) {
+                    return renderFinalSummary();
+                }
+                
+                // Otherwise, show single component review
+                return renderSingleComponentReview();
+            };
+            
+            // Render a single component for review
+            const renderSingleComponentReview = () => {
+                // Sort components by their original order index
+                const sortedComponents = [...matchingResults].sort((a, b) => 
+                    (a.orderIndex || 0) - (b.orderIndex || 0)
+                );
+                
+                const component = sortedComponents[currentComponentIndex];
+                if (!component) return null;
+                
+                const validation = getValidationStatus(component);
+                const isValid = validation.valid;
+                const totalComponents = sortedComponents.length;
+                const componentNumber = currentComponentIndex + 1;
+                
+                // Determine species confidence level and color
+                const getConfidenceColor = (confidence) => {
+                    if (confidence >= 95) return { bg: '#d4edda', border: '#28a745', text: '#155724' };
+                    if (confidence >= 70) return { bg: '#fff3cd', border: '#ffc107', text: '#856404' };
+                    return { bg: '#f8d7da', border: '#dc3545', text: '#721c24' };
+                };
+                
+                const confidenceStyle = getConfidenceColor(component.confidence);
+                
+                const handleConfirmSpecies = (selectedSpecies) => {
+                    const updated = matchingResults.map(item => 
+                        item.id === component.id
+                            ? {
+                                ...item,
+                                matchedSpecies: selectedSpecies,
+                                confidence: 100,
+                                confirmed: true
+                            }
+                            : item
+                    );
+                    setMatchingResults(updated);
+                };
+                
+                const handleNext = () => {
+                    if (currentComponentIndex < sortedComponents.length - 1) {
+                        setCurrentComponentIndex(currentComponentIndex + 1);
+                    } else {
+                        // Go to final summary
+                        setCurrentComponentIndex(sortedComponents.length);
+                    }
+                };
+                
+                const handlePrevious = () => {
+                    if (currentComponentIndex > 0) {
+                        setCurrentComponentIndex(currentComponentIndex - 1);
+                    }
+                };
+                
+                const canProceed = isValid && component.confidence >= 70;
+                
+                return (
+                    <div>
+                        {/* Progress Header */}
+                        <div style={{background: '#f8f9fa', padding: '20px', borderRadius: '10px', marginBottom: '30px', textAlign: 'center'}}>
+                            <h2 style={{color: '#055902', marginBottom: '10px'}}>
+                                Component {componentNumber} of {totalComponents}
+                            </h2>
+                            <div style={{fontSize: '14px', color: '#666'}}>
+                                Review each component carefully before proceeding
+                            </div>
+                            
+                            {/* Progress Bar */}
+                            <div style={{background: '#dee2e6', height: '8px', borderRadius: '4px', marginTop: '15px', overflow: 'hidden'}}>
+                                <div style={{
+                                    background: '#055902',
+                                    height: '100%',
+                                    width: `${(componentNumber / totalComponents) * 100}%`,
+                                    transition: 'width 0.3s'
+                                }}></div>
+                            </div>
+                        </div>
+                        
+                        {/* Component Card */}
+                        <div className={`component-card ${isValid ? 'valid' : 'invalid'}`}>
+                            {/* Component Details */}
+                            <div style={{marginBottom: '20px'}}>
+                                <h3 style={{color: '#055902', marginBottom: '10px'}}>Component Details</h3>
+                                <div style={{fontSize: '16px', padding: '15px', background: '#f8f9fa', borderRadius: '5px'}}>
+                                    <div style={{marginBottom: '8px'}}><strong>Original Species:</strong> {component.originalSpecies}</div>
+                                    <div style={{marginBottom: '8px'}}><strong>Thickness:</strong> {component.thickness}mm</div>
+                                    <div style={{marginBottom: '8px'}}><strong>Width:</strong> {component.width}mm</div>
+                                    <div style={{marginBottom: '8px'}}><strong>Length:</strong> {component.length}mm</div>
+                                    <div><strong>Quantity:</strong> {component.quantity}</div>
+                                </div>
+                            </div>
+                            
+                            {/* Species Matching */}
+                            <div style={{
+                                padding: '20px',
+                                background: confidenceStyle.bg,
+                                border: `2px solid ${confidenceStyle.border}`,
+                                borderRadius: '10px',
+                                marginBottom: '20px'
+                            }}>
+                                <h3 style={{color: confidenceStyle.text, marginBottom: '15px'}}>
+                                    Species Match - {component.confidence}% Confidence
+                                </h3>
+                                
+                                {component.confidence >= 95 ? (
+                                    <div>
+                                        <div style={{fontSize: '16px', marginBottom: '10px'}}>
+                                            <strong>Matched to:</strong> {component.matchedSpecies}
+                                        </div>
+                                    </div>
+                                ) : component.confidence >= 70 ? (
+                                    <div>
+                                        <div style={{fontSize: '16px', marginBottom: '15px'}}>
+                                            <strong>Matched to:</strong> {component.matchedSpecies}
+                                        </div>
+                                        {!component.confirmed && (
+                                            <div style={{display: 'flex', gap: '10px'}}>
+                                                <button
+                                                    onClick={() => handleConfirmSpecies(component.matchedSpecies)}
+                                                    style={{
+                                                        padding: '10px 20px',
+                                                        background: '#055902',
+                                                        color: 'white',
+                                                        border: 'none',
+                                                        borderRadius: '5px',
+                                                        cursor: 'pointer',
+                                                        fontSize: '15px',
+                                                        fontWeight: 'bold'
+                                                    }}
+                                                >
+                                                    Confirm {component.matchedSpecies}
+                                                </button>
+                                                {component.suggestions && component.suggestions.length > 1 && (
+                                                    <select
+                                                        onChange={(e) => handleConfirmSpecies(e.target.value)}
+                                                        style={{
+                                                            padding: '10px',
+                                                            borderRadius: '5px',
+                                                            border: '1px solid #ccc'
+                                                        }}
+                                                        defaultValue=""
+                                                    >
+                                                        <option value="" disabled>Or select different species...</option>
+                                                        {component.suggestions.filter(s => s !== component.matchedSpecies).map(suggestion => (
+                                                            <option key={suggestion} value={suggestion}>{suggestion}</option>
+                                                        ))}
+                                                    </select>
+                                                )}
+                                            </div>
+                                        )}
+                                        {component.confirmed && (
+                                            <div style={{color: '#28a745', fontWeight: 'bold'}}>Confirmed</div>
+                                        )}
+                                    </div>
+                                ) : (
+                                    <div>
+                                        <div style={{fontSize: '16px', marginBottom: '15px', color: confidenceStyle.text}}>
+                                            <strong>Please select the correct species:</strong>
+                                        </div>
+                                        <select
+                                            value={component.confirmed ? component.matchedSpecies : ''}
+                                            onChange={(e) => handleConfirmSpecies(e.target.value)}
+                                            style={{
+                                                width: '100%',
+                                                padding: '12px',
+                                                fontSize: '16px',
+                                                borderRadius: '5px',
+                                                border: `2px solid ${confidenceStyle.border}`
+                                            }}
+                                        >
+                                            <option value="" disabled>Select species...</option>
+                                            {speciesOptions.map(species => (
+                                                <option key={species} value={species}>{species}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                )}
+                            </div>
+                            
+                            {/* Validation Checks */}
+                            <div style={{marginBottom: '20px'}}>
+                                <h3 style={{color: '#055902', marginBottom: '15px'}}>Validation Checks</h3>
+                                {validation.checks.map((check, idx) => (
+                                    <div 
+                                        key={idx} 
+                                        className={`validation-item ${check.type}`}
+                                        style={{marginBottom: '10px'}}
+                                    >
+                                        <div className="validation-content">
+                                            <div className="validation-title">{check.title}</div>
+                                            {check.detail && <div className="validation-detail">{check.detail}</div>}
+                                            
+                                            {/* Thickness Fix */}
+                                            {check.alternatives && check.alternatives.suggestions && check.alternatives.suggestions.length > 0 && (
+                                                <div style={{marginTop: '10px'}}>
+                                                    <strong>Suggested fixes:</strong><br/>
+                                                    <div style={{display: 'flex', gap: '10px', marginTop: '10px', flexWrap: 'wrap'}}>
+                                                        {check.alternatives.suggestions.map((alt, altIndex) => {
+                                                            const diffText = alt.type === 'thicker' ? `(+${alt.diff}mm)` : `(-${alt.diff}mm)`;
+                                                            return (
+                                                                <button
+                                                                    key={altIndex}
+                                                                    onClick={() => applyThicknessFix(component.id, alt.thickness)}
+                                                                    style={{
+                                                                        padding: '10px 20px',
+                                                                        background: 'white',
+                                                                        color: '#055902',
+                                                                        border: '2px solid #055902',
+                                                                        borderRadius: '5px',
+                                                                        cursor: 'pointer',
+                                                                        fontSize: '15px',
+                                                                        fontWeight: 'bold'
+                                                                    }}
+                                                                >
+                                                                    Use {alt.thickness}mm {diffText}
+                                                                </button>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
+                                            )}
+                                            
+                                            {/* Length Split Fix */}
+                                            {check.lengthSplit && (
+                                                <div style={{marginTop: '10px'}}>
+                                                    <strong>Suggested fix:</strong><br/>
+                                                    <div style={{background: '#fff3cd', padding: '10px', borderRadius: '5px', marginTop: '10px'}}>
+                                                        Instead of 1 piece at {check.lengthSplit.originalLength}mm, use:
+                                                        <div style={{fontSize: '16px', fontWeight: 'bold', margin: '10px 0'}}>
+                                                            {check.lengthSplit.numPieces} pieces × {check.lengthSplit.suggestedLength}mm each
+                                                        </div>
+                                                        <div style={{fontSize: '12px', color: '#666'}}>
+                                                            (Our maximum stock length is {check.lengthSplit.maxLength}mm)
+                                                        </div>
+                                                    </div>
+                                                    <button
+                                                        onClick={() => applySplitLength(component.id, check.lengthSplit.numPieces, check.lengthSplit.suggestedLength)}
+                                                        style={{
+                                                            width: '100%',
+                                                            padding: '12px',
+                                                            fontSize: '16px',
+                                                            marginTop: '10px',
+                                                            background: 'white',
+                                                            color: '#055902',
+                                                            border: '2px solid #055902',
+                                                            borderRadius: '5px',
+                                                            cursor: 'pointer',
+                                                            fontWeight: 'bold'
+                                                        }}
+                                                    >
+                                                        Split into {check.lengthSplit.numPieces} pieces × {check.lengthSplit.suggestedLength}mm
+                                                    </button>
+                                                </div>
+                                            )}
+                                            
+                                            {/* Width Nesting Info */}
+                                            {check.calculated && (
+                                                <div style={{marginTop: '10px', padding: '15px', background: 'white', borderRadius: '5px', border: '1px solid #dee2e6'}}>
+                                                    <div className="nesting-title">Width Nesting Solution:</div>
+                                                    <div className="nesting-breakdown">
+                                                        <div style={{marginBottom: '8px'}}>
+                                                            <strong>Your requested width:</strong> {component.width}mm
+                                                        </div>
+                                                        <div style={{marginBottom: '8px'}}>
+                                                            <strong>Available stock width:</strong> {check.calculated.stockWidth}mm
+                                                        </div>
+                                                        <div style={{marginBottom: '8px'}}>
+                                                            <strong>Total stock pieces to supply your requirements:</strong> {check.calculated.totalStockPieces} boards
+                                                        </div>
+                                                        <div style={{fontSize: '12px', color: '#666', marginTop: '10px'}}>
+                                                            {check.calculated.piecesPerStockBoard > 1 
+                                                                ? `We can cut ${check.calculated.piecesPerStockBoard} finished pieces from each ${check.calculated.stockWidth}mm board (with 6mm saw kerf between cuts)`
+                                                                : check.calculated.stockWidth >= component.width
+                                                                    ? `Using ${check.calculated.stockWidth}mm boards (${check.calculated.widthWaste}mm waste per board)`
+                                                                    : `Will need to glue multiple ${check.calculated.stockWidth}mm boards together to achieve ${component.width}mm`
+                                                            }
+                                                        </div>
+                                                    </div>
+                                                    
+                                                    {/* Visual Layout for Multiple Pieces */}
+                                                    {check.calculated.piecesPerStockBoard > 1 && (
+                                                        <div style={{marginTop: '15px', padding: '15px', background: 'white', borderRadius: '5px', border: '1px solid #dee2e6'}}>
+                                                            <strong>Visual Layout:</strong>
+                                                            <div className="board-layout" style={{marginTop: '10px'}}>
+                                                                {Array.from({length: check.calculated.piecesPerStockBoard}).map((_, i) => (
+                                                                    <React.Fragment key={i}>
+                                                                        <div className="piece">{component.width}mm</div>
+                                                                        {i < check.calculated.piecesPerStockBoard - 1 && <div className="kerf">6mm</div>}
+                                                                    </React.Fragment>
+                                                                ))}
+                                                                <div className="waste">{check.calculated.widthWaste}mm</div>
+                                                            </div>
+                                                            <div style={{fontSize: '11px', color: '#666', marginTop: '8px', textAlign: 'center'}}>
+                                                                {check.calculated.stockWidth}mm board total width
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+                                            
+                                            {/* Width Not Available - Show alternatives */}
+                                            {check.notAvailable && check.availableAlternatives && check.availableAlternatives.length > 0 && (
+                                                <div style={{marginTop: '10px'}}>
+                                                    <div style={{background: '#fff3cd', padding: '15px', borderRadius: '5px'}}>
+                                                        <strong style={{color: '#856404'}}>⚠️ Width Not Available</strong>
+                                                        <div style={{marginTop: '10px', fontSize: '14px', marginBottom: '10px'}}>
+                                                            {component.width}mm width is not currently in stock for {component.matchedSpecies} {component.thickness}mm.
+                                                        </div>
+                                                        <div style={{fontSize: '14px', fontWeight: 'bold', marginBottom: '8px'}}>
+                                                            Available widths for this species and thickness:
+                                                        </div>
+                                                        <div style={{
+                                                            display: 'flex', 
+                                                            gap: '8px', 
+                                                            flexWrap: 'wrap',
+                                                            fontSize: '14px'
+                                                        }}>
+                                                            {check.availableAlternatives.map((width, i) => (
+                                                                <span key={i} style={{
+                                                                    padding: '6px 12px',
+                                                                    background: 'white',
+                                                                    border: '1px solid #ccc',
+                                                                    borderRadius: '4px',
+                                                                    fontWeight: 'bold'
+                                                                }}>
+                                                                    {width}mm
+                                                                </span>
+                                                            ))}
+                                                        </div>
+                                                        <div style={{marginTop: '12px', fontSize: '13px', color: '#666'}}>
+                                                            Please update your cutting list to use one of these widths, or choose a different timber species.
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                ))}
+                                
+                                {/* Display Notes if they exist */}
+                                {validation.calculated?.notes && (
+                                    <div style={{
+                                        marginTop: '15px',
+                                        padding: '15px',
+                                        background: '#e8f5e8',
+                                        border: '2px solid #055902',
+                                        borderRadius: '8px'
+                                    }}>
+                                        <div style={{display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px'}}>
+                                            <span style={{fontSize: '20px'}}>ℹ️</span>
+                                            <strong style={{color: '#055902', fontSize: '16px'}}>Important Note:</strong>
+                                        </div>
+                                        <div style={{fontSize: '15px', color: '#1d1d1f'}}>
+                                            {validation.calculated.notes}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                            
+                            {/* Remove Component Option */}
+                            {!isValid && (
+                                <div style={{textAlign: 'center', marginTop: '20px', paddingTop: '20px', borderTop: '2px solid #dee2e6'}}>
+                                    <button
+                                        onClick={() => removeComponent(component.id)}
+                                        style={{
+                                            padding: '10px 20px',
+                                            background: 'white',
+                                            color: '#dc3545',
+                                            border: '2px solid #dc3545',
+                                            borderRadius: '5px',
+                                            cursor: 'pointer',
+                                            fontSize: '15px',
+                                            fontWeight: 'bold'
+                                        }}
+                                    >
+                                        Remove This Component
+                                    </button>
+                                    <div style={{fontSize: '12px', color: '#666', marginTop: '10px'}}>
+                                        Or fix the issues above to keep this component
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                        
+                        {/* Navigation Buttons */}
+                        <div className="button-group" style={{marginTop: '30px'}}>
+                            <button
+                                className="btn btn-secondary"
+                                onClick={handlePrevious}
+                                disabled={currentComponentIndex === 0}
+                                style={{opacity: currentComponentIndex === 0 ? 0.5 : 1}}
+                            >
+                                Previous Component
+                            </button>
+                            
+                            <button
+                                className="btn btn-primary"
+                                onClick={handleNext}
+                                disabled={!canProceed}
+                                style={{opacity: canProceed ? 1 : 0.5}}
+                            >
+                                {canProceed 
+                                    ? (currentComponentIndex === totalComponents - 1 ? 'Go to Summary' : 'Next Component')
+                                    : 'Fix Issues to Continue'
+                                }
+                            </button>
+                        </div>
+                        
+                        {!canProceed && (
+                            <div style={{textAlign: 'center', color: '#dc3545', marginTop: '15px', fontSize: '14px'}}>
+                                {component.confidence < 70 ? 'Please confirm the species to continue' : 'Please fix all validation errors to continue'}
+                            </div>
+                        )}
+                    </div>
+                );
+            };
+            
+            // Render final summary of all components
+            const renderFinalSummary = () => {
+                // Sort components by their original order index
+                const sortedComponents = [...matchingResults].sort((a, b) => 
+                    (a.orderIndex || 0) - (b.orderIndex || 0)
+                );
+                
+                const validatedComponents = sortedComponents.map(comp => ({
+                    ...comp,
+                    validation: getValidationStatus(comp)
+                }));
+                
+                const validCount = validatedComponents.filter(c => c.validation.valid).length;
+                const invalidCount = validatedComponents.filter(c => !c.validation.valid).length;
+                const canSubmit = validCount > 0 && invalidCount === 0;
+                
+                return (
+                    <div>
+                        <h2 style={{marginBottom: '30px', color: '#055902', textAlign: 'center'}}>Final Review</h2>
+                        
+                        {/* Student Info */}
+                        {(studentInfo.name || studentInfo.email) && (
+                            <div style={{background: '#f8f9fa', padding: '15px', borderRadius: '8px', marginBottom: '20px'}}>
+                                {studentInfo.name && <div><strong>Student:</strong> {studentInfo.name}</div>}
+                                {studentInfo.email && <div><strong>Email:</strong> {studentInfo.email}</div>}
+                                {studentInfo.mobile && <div><strong>Mobile:</strong> {studentInfo.mobile}</div>}
+                                {studentInfo.school && <div><strong>School:</strong> {studentInfo.school}</div>}
+                                {studentInfo.teacher && <div><strong>Teacher:</strong> {studentInfo.teacher}</div>}
+                            </div>
+                        )}
+                        
+                        {/* Pickup/Delivery Option */}
+                        <div style={{background: '#f8f9fa', padding: '20px', borderRadius: '8px', marginBottom: '20px', border: '2px solid #055902'}}>
+                            <h3 style={{marginBottom: '15px', color: '#055902'}}>Collection Method</h3>
+                            <div style={{display: 'flex', gap: '30px', justifyContent: 'center'}}>
+                                <label style={{display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', fontSize: '16px'}}>
+                                    <input
+                                        type="radio"
+                                        name="deliveryOption"
+                                        value="pickup"
+                                        checked={deliveryOption === 'pickup'}
+                                        onChange={(e) => setDeliveryOption(e.target.value)}
+                                        style={{width: '20px', height: '20px', cursor: 'pointer'}}
+                                    />
+                                    <strong>Pickup from Store</strong>
+                                </label>
+                                <label style={{display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', fontSize: '16px'}}>
+                                    <input
+                                        type="radio"
+                                        name="deliveryOption"
+                                        value="delivery"
+                                        checked={deliveryOption === 'delivery'}
+                                        onChange={(e) => setDeliveryOption(e.target.value)}
+                                        style={{width: '20px', height: '20px', cursor: 'pointer'}}
+                                    />
+                                    <span><strong>Delivery Required</strong> - we will deliver to your school</span>
+                                </label>
+                            </div>
+                        </div>
+                        
+                        {/* Customer Notes */}
+                        <div style={{background: '#f8f9fa', padding: '20px', borderRadius: '8px', marginBottom: '20px', border: '1px solid #e5e5e7'}}>
+                            <h3 style={{marginBottom: '15px', color: '#055902'}}>Notes for Trend Timbers (Optional)</h3>
+                            <textarea
+                                value={customerNotes}
+                                onChange={(e) => setCustomerNotes(e.target.value)}
+                                placeholder="Any special requirements, questions, or notes about your project..."
+                                style={{
+                                    width: '100%',
+                                    minHeight: '100px',
+                                    padding: '12px',
+                                    borderRadius: '8px',
+                                    border: '1px solid #d2d2d7',
+                                    fontSize: '15px',
+                                    fontFamily: 'inherit',
+                                    resize: 'vertical'
+                                }}
+                            />
+                            
+                        </div>
+                        
+                        {/* Summary Stats */}
+                        <div style={{background: '#e8f5e8', padding: '20px', borderRadius: '10px', margin: '20px 0', border: '2px solid #055902', textAlign: 'center'}}>
+                            <h3 style={{marginBottom: '15px', color: '#055902'}}>
+                                {canSubmit ? 'Ready to Submit' : 'Action Required'}
+                            </h3>
+                            <div style={{fontSize: '18px', marginBottom: '10px'}}>
+                                <strong>{validCount}</strong> component{validCount > 1 ? 's are' : ' is'} validated
+                            </div>
+                            {invalidCount > 0 && (
+                                <div style={{color: '#dc3545', fontSize: '16px'}}>
+                                    <strong>{invalidCount}</strong> component{invalidCount > 1 ? 's still need' : ' still needs'} attention
+                                </div>
+                            )}
+                        </div>
+                        
+                        {/* Component List */}
+                        <div style={{marginBottom: '30px'}}>
+                            <h3 style={{marginBottom: '15px', color: '#055902'}}>All Components</h3>
+                            {validatedComponents.map((component, index) => {
+                                const isValid = component.validation.valid;
+                                return (
+                                    <div 
+                                        key={component.id}
+                                        style={{
+                                            background: isValid ? '#f0fff4' : '#fff5f5',
+                                            border: `2px solid ${isValid ? '#28a745' : '#dc3545'}`,
+                                            borderRadius: '8px',
+                                            padding: '15px',
+                                            marginBottom: '10px',
+                                            display: 'flex',
+                                            justifyContent: 'space-between',
+                                            alignItems: 'center'
+                                        }}
+                                    >
+                                        <div>
+                                            <div style={{fontWeight: 'bold', marginBottom: '5px'}}>
+                                                Component {index + 1}: {component.matchedSpecies}
+                                            </div>
+                                            <div style={{fontSize: '14px', color: '#666'}}>
+                                                {component.thickness}mm × {component.width}mm × {component.length}mm × Qty: {component.quantity}
+                                            </div>
+                                        </div>
+                                        <div style={{display: 'flex', gap: '10px', alignItems: 'center'}}>
+                                            <span style={{
+                                                padding: '6px 12px',
+                                                borderRadius: '20px',
+                                                fontSize: '14px',
+                                                fontWeight: 'bold',
+                                                background: isValid ? '#28a745' : '#dc3545',
+                                                color: 'white'
+                                            }}>
+                                                {isValid ? 'Valid' : 'Needs Fix'}
+                                            </span>
+                                            <button
+                                                onClick={() => setCurrentComponentIndex(index)}
+                                                style={{
+                                                    padding: '6px 12px',
+                                                    background: '#055902',
+                                                    color: 'white',
+                                                    border: 'none',
+                                                    borderRadius: '5px',
+                                                    cursor: 'pointer',
+                                                    fontSize: '14px'
+                                                }}
+                                            >
+                                                Review
+                                            </button>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                        
+
+                        
+                        {/* Final Note */}
+                        <div style={{background: '#f8f9fa', padding: '15px', borderRadius: '5px', marginBottom: '20px', fontSize: '14px', color: '#666'}}>
+                            You'll receive the full quote with pricing via email after submission
+                        </div>
+                        
+                        {/* Action Buttons */}
+                        <div className="button-group">
+                            <button
+                                className="btn btn-secondary"
+                                onClick={() => setCurrentStep(2)}
+                            >
+                                Upload Different File
+                            </button>
+                            <button
+                                className="btn btn-success"
+                                onClick={handleFinalSubmit}
+                                disabled={!canSubmit}
+                                style={{opacity: canSubmit ? 1 : 0.5}}
+                            >
+                                {canSubmit 
+                                    ? `Submit Quote Request (${validCount} component${validCount > 1 ? 's' : ''})` 
+                                    : 'Fix Errors to Submit'
+                                }
+                            </button>
+                        </div>
+                        
+                        {!canSubmit && (
+                            <div style={{textAlign: 'center', color: '#dc3545', marginTop: '15px'}}>
+                                <strong>Please review and fix all components before submitting</strong>
+                            </div>
+                        )}
+                    </div>
+                );
+            };
+
+            const renderStep4 = () => {
+                return (
+                    <div style={{maxWidth: '800px', margin: '60px auto', textAlign: 'center'}}>
+                        {/* Success Icon */}
+                        <div style={{
+                            width: '120px', 
+                            height: '120px', 
+                            background: '#055902', 
+                            borderRadius: '50%', 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            justifyContent: 'center',
+                            margin: '0 auto 30px',
+                            fontSize: '60px',
+                            color: 'white'
+                        }}>
+                            ✓
+                        </div>
+                        
+                        {/* Success Message */}
+                        <h2 style={{
+                            fontSize: '32px', 
+                            color: '#055902', 
+                            marginBottom: '20px',
+                            fontWeight: '600'
+                        }}>
+                            Success!
+                        </h2>
+                        
+                        <p style={{
+                            fontSize: '20px', 
+                            color: '#1d1d1f', 
+                            marginBottom: '40px',
+                            lineHeight: '1.5'
+                        }}>
+                            Your quote will be emailed to you within 1-2 business days.
+                        </p>
+                        
+                        {/* Additional Info */}
+                        <div style={{
+                            background: '#f5f5f7', 
+                            padding: '30px', 
+                            borderRadius: '12px',
+                            marginBottom: '40px',
+                            textAlign: 'left'
+                        }}>
+                            <h3 style={{color: '#412b28', marginBottom: '15px', fontSize: '18px'}}>What happens next?</h3>
+                            <ul style={{
+                                listStyle: 'none', 
+                                padding: 0, 
+                                margin: 0,
+                                fontSize: '16px',
+                                lineHeight: '1.8',
+                                color: '#1d1d1f'
+                            }}>
+                                <li style={{marginBottom: '10px'}}>✓ We'll review your cutting list</li>
+                                <li style={{marginBottom: '10px'}}>✓ Calculate the best pricing for your project</li>
+                                <li style={{marginBottom: '10px'}}>✓ Send you a detailed quote via email</li>
+                                <li>✓ Answer any questions you may have</li>
+                            </ul>
+                        </div>
+                        
+                        {/* Start New Quote Button */}
+                        <button
+                            onClick={() => {
+                                setCurrentStep(1);
+                                setUploadedFile(null);
+                                setUploadedFileBase64(null);
+                                setParsedData([]);
+                                setMatchingResults([]);
+                                setStudentInfo({});
+                                setDeliveryOption('pickup');
+                                setAllConfirmed(false);
+                                setUploadError('');
+                                if (fileInputRef.current) {
+                                    fileInputRef.current.value = '';
+                                }
+                            }}
+                            style={{
+                                padding: '15px 40px',
+                                background: '#055902',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '8px',
+                                fontSize: '18px',
+                                fontWeight: '600',
+                                cursor: 'pointer',
+                                transition: 'background 0.2s'
+                            }}
+                            onMouseOver={(e) => e.target.style.background = '#044501'}
+                            onMouseOut={(e) => e.target.style.background = '#055902'}
+                        >
+                            Start a New Quote
+                        </button>
+                    </div>
+                );
+            };
+
+            return (
+                <div className="wizard-container">
+                    {loading && (
+                        <div className="loading-overlay">
+                            <div>
+                                <div className="spinner"></div>
+                                <div className="loading-text">Processing...</div>
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="header">
+                        <img src="https://trendtimbers.com.au/wp-content/uploads/2025/08/Trend-Timbers-Logo2.png" alt="Trend Timbers Logo" className="header-logo" />
+                        <div className="header-content">
+                            <h1>Trend Timbers Quote Builder</h1>
+                            <p>Upload your cutting list and we'll generate your quote</p>
+                        </div>
+                    </div>
+
+                    {currentStep !== 4 && (
+                        <div className="progress-bar">
+                            <div className={`progress-step ${currentStep >= 1 ? 'active' : ''} ${currentStep > 1 ? 'completed' : ''}`}>
+                                <div className="step-circle">1</div>
+                                <div className="step-label">Instructions</div>
+                            </div>
+                            <div className={`progress-step ${currentStep >= 2 ? 'active' : ''} ${currentStep > 2 ? 'completed' : ''}`}>
+                                <div className="step-circle">2</div>
+                                <div className="step-label">Upload File</div>
+                            </div>
+                            <div className={`progress-step ${currentStep >= 3 ? 'active' : ''}`}>
+                                <div className="step-circle">3</div>
+                                <div className="step-label">Review Components</div>
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="wizard-content">
+                        {currentStep === 1 && renderStep1()}
+                        {currentStep === 2 && renderStep2()}
+                        {currentStep === 3 && renderStep3()}
+                        {currentStep === 4 && renderStep4()}
+                    </div>
+                </div>
+            );
+        }
+
+        // Main App Component that decides which mode to show
+        function App() {
+            const [reviewMode, setReviewMode] = React.useState(false);
+            const [quoteData, setQuoteData] = React.useState(null);
+            const [loading, setLoading] = React.useState(true);
+
+            React.useEffect(() => {
+                // Check if we're in review mode
+                if (isReviewMode()) {
+                    const quoteId = getQuoteIdFromUrl();
+                    if (quoteId) {
+                        // For now, create mock data - in production this would fetch from n8n
+                        // You would replace this with an actual fetch call to your n8n workflow
+                        const mockQuoteData = {
+                            quoteId: quoteId,
+                            timestamp: new Date().toISOString(),
+                            studentInfo: {
+                                name: 'Test Student',
+                                email: 'test@example.com',
+                                mobile: '0400000000',
+                                school: 'Test School',
+                                teacher: 'Test Teacher'
+                            },
+                            deliveryOption: 'delivery',
+                            components: [],
+                            totals: {
+                                subtotal: '0.00',
+                                gst: '0.00',
+                                total: '0.00'
+                            },
+                            originalFile: null
+                        };
+                        setQuoteData(mockQuoteData);
+                        setReviewMode(true);
+                        setLoading(false);
+                    } else {
+                        setLoading(false);
+                    }
+                } else {
+                    setLoading(false);
+                }
+            }, []);
+
+            if (loading) {
+                return (
+                    <div className="loading-overlay">
+                        <div>
+                            <div className="spinner"></div>
+                            <div className="loading-text">Loading...</div>
+                        </div>
+                    </div>
+                );
+            }
+
+            // Show review mode if we have quote data and are in review mode
+            if (reviewMode && quoteData) {
+                return <ReviewModeComponent quoteData={quoteData} />;
+            }
+
+            // Otherwise show the normal upload wizard
+            return <ExcelUploadWizard />;
+        }
+
+        ReactDOM.render(<App />, document.getElementById('root'));
+    </script>
+</body>
+</html>

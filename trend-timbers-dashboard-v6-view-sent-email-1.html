@@ -1,0 +1,1953 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trend Timbers - Quote Management</title>
+    <style>
+        :root {
+            --tt-green: #055902;
+            --tt-green-light: #067a04;
+            --tt-green-dark: #044701;
+            --tt-gold: #c5aa7f;
+            --tt-gold-light: #d4c4a8;
+            --tt-brown: #412e28;
+            --tt-cream: #f8f9fa;
+            --shadow-sm: 0 1px 3px rgba(0,0,0,0.08);
+            --shadow-md: 0 4px 12px rgba(0,0,0,0.1);
+            --shadow-lg: 0 8px 24px rgba(0,0,0,0.12);
+            --radius-sm: 6px;
+            --radius-md: 10px;
+            --radius-lg: 14px;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Inter', sans-serif;
+            background: var(--tt-cream);
+            min-height: 100vh;
+            color: #333;
+            font-size: 14px;
+        }
+
+        /* ===== LAYOUT ===== */
+        .app-container {
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+
+        /* ===== HEADER ===== */
+        .header {
+            background: white;
+            border-bottom: 1px solid #e5e7eb;
+            padding: 16px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .logo {
+            height: 36px;
+        }
+
+        .header-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--tt-green);
+        }
+
+        .header-subtitle {
+            font-size: 12px;
+            color: #6b7280;
+        }
+
+        /* ===== STATS BAR ===== */
+        .stats-bar {
+            background: white;
+            border-bottom: 1px solid #e5e7eb;
+            padding: 12px 24px;
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .stat-chip {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 14px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.15s;
+            border: 1px solid transparent;
+        }
+
+        .stat-chip:hover {
+            transform: translateY(-1px);
+        }
+
+        .stat-chip.active {
+            border-color: currentColor;
+        }
+
+        .stat-chip .count {
+            background: rgba(0,0,0,0.1);
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-weight: 600;
+        }
+
+        .stat-pending { background: #fef3c7; color: #92400e; }
+        .stat-sent { background: #dbeafe; color: #1e40af; }
+        .stat-followup { background: #fed7aa; color: #c2410c; }
+        .stat-order { background: #d1fae5; color: #065f46; }
+        .stat-complete { background: #055902; color: white; }
+        .stat-complete .count { background: rgba(255,255,255,0.2); }
+        .stat-total { background: #f3f4f6; color: #374151; }
+
+        /* ===== CONTROLS ===== */
+        .controls {
+            padding: 16px 24px;
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .search-box {
+            flex: 1;
+            min-width: 260px;
+            max-width: 400px;
+            padding: 10px 14px 10px 40px;
+            border: 1px solid #d1d5db;
+            border-radius: var(--radius-md);
+            font-size: 14px;
+            transition: all 0.15s;
+            background: white url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='%239ca3af' stroke-width='2'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.35-4.35'/%3E%3C/svg%3E") no-repeat 12px center;
+        }
+
+        .search-box:focus {
+            outline: none;
+            border-color: var(--tt-green);
+            box-shadow: 0 0 0 3px rgba(5, 89, 2, 0.1);
+        }
+
+        .filter-select {
+            padding: 10px 14px;
+            border: 1px solid #d1d5db;
+            border-radius: var(--radius-md);
+            font-size: 14px;
+            background: white;
+            cursor: pointer;
+            min-width: 140px;
+        }
+
+        .filter-select:focus {
+            outline: none;
+            border-color: var(--tt-green);
+        }
+
+        .btn {
+            padding: 10px 18px;
+            border: none;
+            border-radius: var(--radius-md);
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.15s;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn-primary {
+            background: var(--tt-green);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--tt-green-dark);
+        }
+
+        .btn-secondary {
+            background: white;
+            color: #374151;
+            border: 1px solid #d1d5db;
+        }
+
+        .btn-secondary:hover {
+            background: #f9fafb;
+        }
+
+        /* ===== TABLE ===== */
+        .table-container {
+            margin: 0 24px 24px;
+            background: white;
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-sm);
+            overflow: visible !important;
+            border: 1px solid #e5e7eb;
+        }
+
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            overflow: visible !important;
+        }
+
+        .data-table thead,
+        .data-table tbody,
+        .data-table tr {
+            overflow: visible !important;
+        }
+
+        .data-table th {
+            background: #f9fafb;
+            padding: 12px 16px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #6b7280;
+            border-bottom: 1px solid #e5e7eb;
+            cursor: pointer;
+            user-select: none;
+            white-space: nowrap;
+        }
+
+        .data-table th:hover {
+            background: #f3f4f6;
+        }
+
+        .data-table th.no-sort {
+            cursor: default;
+        }
+
+        .data-table th.no-sort:hover {
+            background: #f9fafb;
+        }
+
+        .sort-icon {
+            margin-left: 4px;
+            opacity: 0.4;
+        }
+
+        .data-table th.sorted {
+            color: var(--tt-green);
+        }
+
+        .data-table th.sorted .sort-icon {
+            opacity: 1;
+        }
+
+        .data-table td {
+            padding: 14px 16px;
+            border-bottom: 1px solid #f3f4f6;
+            vertical-align: middle;
+            overflow: visible !important;
+            position: relative;
+        }
+
+        .data-table tbody tr {
+            transition: background 0.1s;
+        }
+
+        .data-table tbody tr:hover {
+            background: #fafafa;
+        }
+
+        .data-table tbody tr:last-child td {
+            border-bottom: none;
+        }
+
+        /* ===== CELL STYLES ===== */
+        .quote-id {
+            font-family: 'SF Mono', Monaco, monospace;
+            font-weight: 600;
+            color: var(--tt-green);
+            font-size: 13px;
+        }
+
+        .customer-name {
+            font-weight: 600;
+            color: #111827;
+        }
+
+        .customer-email {
+            font-size: 12px;
+            color: #6b7280;
+        }
+
+        .school-name {
+            color: #374151;
+        }
+
+        .teacher-name {
+            font-size: 12px;
+            color: #6b7280;
+        }
+
+        .total-amount {
+            font-weight: 600;
+            color: var(--tt-green);
+        }
+
+        /* ===== DELIVERY BADGE ===== */
+        .delivery-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .delivery-pickup {
+            background: #ecfdf5;
+            color: #047857;
+        }
+
+        .delivery-delivery {
+            background: #eff6ff;
+            color: #1d4ed8;
+        }
+
+        /* ===== PRICE BREAKDOWN TOOLTIP ===== */
+        .price-cell {
+            position: relative;
+        }
+
+        .price-breakdown {
+            display: none;
+            position: absolute;
+            top: 100%;
+            right: 0;
+            background: white;
+            border: 2px solid #055902;
+            border-radius: 8px;
+            padding: 12px 15px;
+            min-width: 220px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            z-index: 9999;
+            text-align: left;
+            font-size: 13px;
+        }
+
+        .price-cell:hover .price-breakdown {
+            display: block;
+        }
+
+        .price-breakdown-title {
+            font-weight: bold;
+            color: #055902;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 8px;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+
+        .price-breakdown-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 4px 0;
+        }
+
+        .price-breakdown-row.delivery {
+            color: #1d4ed8;
+            background: #eff6ff;
+            margin: 4px -8px;
+            padding: 6px 8px;
+            border-radius: 4px;
+        }
+
+        .price-breakdown-row.total {
+            font-weight: bold;
+            font-size: 16px;
+            border-top: 2px solid #055902;
+            margin-top: 8px;
+            padding-top: 8px;
+            color: #055902;
+        }
+
+        .total-with-info {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            cursor: help;
+        }
+
+        .info-hint {
+            font-size: 11px;
+            color: #666;
+            opacity: 0.7;
+        }
+
+        /* ===== STATUS DROPDOWN ===== */
+        .status-dropdown {
+            position: relative;
+            display: inline-block;
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            cursor: pointer;
+            transition: all 0.15s;
+            border: 2px solid transparent;
+        }
+
+        .status-badge:hover {
+            filter: brightness(0.95);
+        }
+
+        .status-badge::after {
+            content: '▾';
+            font-size: 10px;
+            opacity: 0.6;
+        }
+
+        .status-PENDING { background: #fef3c7; color: #92400e; }
+        .status-QUOTE-SENT, .status-SENT { background: #dbeafe; color: #1e40af; }
+        .status-FOLLOW-UP { background: #fed7aa; color: #c2410c; }
+        .status-ORDER { background: #d1fae5; color: #065f46; }
+        .status-COMPLETE { background: var(--tt-green); color: white; }
+
+        .status-menu {
+            position: absolute;
+            top: calc(100% + 4px);
+            left: 0;
+            background: white;
+            border-radius: var(--radius-md);
+            box-shadow: var(--shadow-lg);
+            min-width: 160px;
+            z-index: 9999;
+            display: none;
+            overflow: visible;
+            border: 1px solid #e5e7eb;
+        }
+
+        .status-menu.active {
+            display: block;
+            animation: fadeIn 0.15s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-4px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .status-menu-item {
+            padding: 10px 14px;
+            cursor: pointer;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            transition: background 0.1s;
+        }
+
+        .status-menu-item:hover {
+            background: #f3f4f6;
+        }
+
+        .status-menu-item.current {
+            background: #ecfdf5;
+            font-weight: 600;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+
+        .dot-pending { background: #f59e0b; }
+        .dot-sent { background: #3b82f6; }
+        .dot-followup { background: #f97316; }
+        .dot-order { background: #10b981; }
+        .dot-complete { background: #055902; }
+
+        /* ===== ACTIONS DROPDOWN ===== */
+        .actions-dropdown {
+            position: relative;
+        }
+
+        .actions-btn {
+            padding: 8px 14px;
+            background: white;
+            border: 1px solid #d1d5db;
+            border-radius: var(--radius-sm);
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.15s;
+            color: #374151;
+        }
+
+        .actions-btn:hover {
+            background: #f9fafb;
+            border-color: #9ca3af;
+        }
+
+        .actions-menu {
+            position: absolute;
+            top: calc(100% + 4px);
+            right: 0;
+            background: white;
+            border-radius: var(--radius-md);
+            box-shadow: var(--shadow-lg);
+            min-width: 200px;
+            z-index: 9999;
+            display: none;
+            overflow: visible;
+            border: 1px solid #e5e7eb;
+        }
+
+        .actions-menu.active {
+            display: block;
+            animation: fadeIn 0.15s ease;
+        }
+
+        .actions-menu-item {
+            padding: 10px 14px;
+            cursor: pointer;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            transition: background 0.1s;
+            color: #374151;
+        }
+
+        .actions-menu-item:hover {
+            background: #f3f4f6;
+        }
+
+        .actions-menu-item.disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        .actions-menu-item.disabled:hover {
+            background: white;
+        }
+
+        .actions-menu-divider {
+            height: 1px;
+            background: #e5e7eb;
+            margin: 4px 0;
+        }
+
+        .actions-menu-item .icon {
+            width: 18px;
+            text-align: center;
+        }
+
+        /* ===== CHECKBOX ===== */
+        .checkbox-cell {
+            width: 48px;
+            text-align: center;
+        }
+
+        .checkbox-cell input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+            accent-color: var(--tt-green);
+        }
+
+        /* ===== MODALS ===== */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.2s;
+        }
+
+        .modal-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .modal {
+            background: white;
+            border-radius: var(--radius-lg);
+            width: 90%;
+            max-width: 500px;
+            max-height: 85vh;
+            overflow: hidden;
+            transform: scale(0.95);
+            transition: transform 0.2s;
+        }
+
+        .modal-overlay.active .modal {
+            transform: scale(1);
+        }
+
+        .modal-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid #e5e7eb;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-header h2 {
+            font-size: 18px;
+            font-weight: 600;
+            color: #111827;
+        }
+
+        .modal-close {
+            width: 32px;
+            height: 32px;
+            border: none;
+            background: #f3f4f6;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 18px;
+            color: #6b7280;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.15s;
+        }
+
+        .modal-close:hover {
+            background: #e5e7eb;
+            color: #374151;
+        }
+
+        .modal-body {
+            padding: 24px;
+            overflow-y: auto;
+            max-height: 60vh;
+        }
+
+        .modal-footer {
+            padding: 16px 24px;
+            border-top: 1px solid #e5e7eb;
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+            background: #f9fafb;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-group:last-child {
+            margin-bottom: 0;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 13px;
+            font-weight: 500;
+            color: #374151;
+            margin-bottom: 6px;
+        }
+
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #d1d5db;
+            border-radius: var(--radius-sm);
+            font-size: 14px;
+            transition: all 0.15s;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: var(--tt-green);
+            box-shadow: 0 0 0 3px rgba(5, 89, 2, 0.1);
+        }
+
+        .form-group input[readonly] {
+            background: #f9fafb;
+            color: #6b7280;
+        }
+
+        /* ===== TOAST ===== */
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            padding: 14px 20px;
+            border-radius: var(--radius-md);
+            font-size: 14px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            z-index: 2000;
+            animation: slideIn 0.3s ease;
+            box-shadow: var(--shadow-lg);
+        }
+
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        .toast.success {
+            background: #ecfdf5;
+            color: #047857;
+            border: 1px solid #a7f3d0;
+        }
+
+        .toast.error {
+            background: #fef2f2;
+            color: #dc2626;
+            border: 1px solid #fecaca;
+        }
+
+        /* ===== BULK ACTION BAR ===== */
+        .bulk-bar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: var(--tt-brown);
+            color: white;
+            padding: 14px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            transform: translateY(100%);
+            transition: transform 0.3s ease;
+            z-index: 100;
+        }
+
+        .bulk-bar.active {
+            transform: translateY(0);
+        }
+
+        .bulk-bar-left {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .bulk-bar-right {
+            display: flex;
+            gap: 10px;
+        }
+
+        .bulk-bar .btn {
+            background: rgba(255,255,255,0.15);
+            color: white;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+
+        .bulk-bar .btn:hover {
+            background: rgba(255,255,255,0.25);
+        }
+
+        /* ===== EMPTY STATE ===== */
+        .empty-state {
+            text-align: center;
+            padding: 60px 24px;
+            color: #6b7280;
+        }
+
+        .empty-state h3 {
+            font-size: 18px;
+            color: #374151;
+            margin-bottom: 8px;
+        }
+
+        /* ===== LOADING ===== */
+        .loading {
+            text-align: center;
+            padding: 60px 24px;
+            color: #6b7280;
+        }
+
+        .spinner {
+            width: 36px;
+            height: 36px;
+            border: 3px solid #e5e7eb;
+            border-top-color: var(--tt-green);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto 16px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* ===== INVOICE MODAL ===== */
+        .invoice-preview {
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
+            border-radius: var(--radius-md);
+            padding: 20px;
+            margin-top: 16px;
+            font-size: 12px;
+        }
+
+        .invoice-header-preview {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+            padding-bottom: 16px;
+            border-bottom: 2px solid var(--tt-gold);
+        }
+
+        .invoice-table-preview {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 16px 0;
+        }
+
+        .invoice-table-preview th,
+        .invoice-table-preview td {
+            padding: 8px;
+            text-align: left;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .invoice-table-preview th {
+            background: #f3f4f6;
+            font-size: 11px;
+            text-transform: uppercase;
+        }
+
+        .invoice-totals {
+            text-align: right;
+            margin-top: 16px;
+        }
+
+        .invoice-totals table {
+            margin-left: auto;
+        }
+
+        .invoice-totals td {
+            padding: 4px 12px;
+        }
+
+        .invoice-totals .total-row {
+            background: var(--tt-gold);
+            font-weight: 600;
+        }
+
+        .invoice-bank {
+            text-align: center;
+            margin-top: 20px;
+            padding: 16px;
+            background: #f3f4f6;
+            border-radius: var(--radius-sm);
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-left">
+                <img src="https://trendtimbers.com.au/wp-content/uploads/2025/08/Trend-Timbers-Logo2.png" alt="Trend Timbers" class="logo">
+                <div>
+                    <div class="header-title">Quote Management</div>
+                    <div class="header-subtitle">Manage quotes, orders and invoices</div>
+                </div>
+            </div>
+            <button class="btn btn-primary" onclick="loadQuotes()">
+                ↻ Refresh
+            </button>
+        </header>
+
+        <!-- Stats Bar -->
+        <div class="stats-bar">
+            <div class="stat-chip stat-pending" onclick="filterByStatus('PENDING')">
+                Pending <span class="count" id="pending-count">0</span>
+            </div>
+            <div class="stat-chip stat-sent" onclick="filterByStatus('QUOTE SENT')">
+                Sent <span class="count" id="sent-count">0</span>
+            </div>
+            <div class="stat-chip stat-followup" onclick="filterByStatus('FOLLOW UP')">
+                Follow Up <span class="count" id="followup-count">0</span>
+            </div>
+            <div class="stat-chip stat-order" onclick="filterByStatus('ORDER')">
+                Orders <span class="count" id="order-count">0</span>
+            </div>
+            <div class="stat-chip stat-complete" onclick="filterByStatus('COMPLETE')">
+                Complete <span class="count" id="complete-count">0</span>
+            </div>
+            <div class="stat-chip stat-total" onclick="filterByStatus('')">
+                All <span class="count" id="total-count">0</span>
+            </div>
+        </div>
+
+        <!-- Controls -->
+        <div class="controls">
+            <input type="text" id="search-input" class="search-box" placeholder="Search quotes...">
+            <select id="status-filter" class="filter-select">
+                <option value="">All Status</option>
+                <option value="PENDING">Pending</option>
+                <option value="QUOTE SENT">Quote Sent</option>
+                <option value="FOLLOW UP">Follow Up</option>
+                <option value="ORDER">Order</option>
+                <option value="COMPLETE">Complete</option>
+            </select>
+            <select id="delivery-filter" class="filter-select">
+                <option value="">All Delivery</option>
+                <option value="pickup">Pickup</option>
+                <option value="delivery">Delivery</option>
+            </select>
+        </div>
+
+        <!-- Table -->
+        <div class="table-container">
+            <div id="quotes-content">
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <p>Loading quotes...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bulk Action Bar -->
+    <div class="bulk-bar" id="bulk-bar">
+        <div class="bulk-bar-left">
+            <span><strong id="selected-count">0</strong> selected</span>
+            <button class="btn" onclick="clearSelection()">Clear</button>
+        </div>
+        <div class="bulk-bar-right">
+            <button class="btn" onclick="bulkChangeStatus('PENDING')">→ Pending</button>
+            <button class="btn" onclick="bulkChangeStatus('QUOTE SENT')">→ Sent</button>
+            <button class="btn" onclick="bulkChangeStatus('FOLLOW UP')">→ Follow Up</button>
+            <button class="btn" onclick="bulkChangeStatus('ORDER')">→ Order</button>
+            <button class="btn" onclick="bulkChangeStatus('COMPLETE')">→ Complete</button>
+        </div>
+    </div>
+
+    <!-- Status Change Modal -->
+    <div class="modal-overlay" id="status-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h2>Update Status</h2>
+                <button class="modal-close" onclick="closeModal('status-modal')">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Quote ID</label>
+                    <input type="text" id="modal-quote-id" readonly>
+                </div>
+                <div class="form-group">
+                    <label>New Status</label>
+                    <select id="modal-status">
+                        <option value="PENDING">Pending</option>
+                        <option value="QUOTE SENT">Quote Sent</option>
+                        <option value="FOLLOW UP">Follow Up</option>
+                        <option value="ORDER">Order</option>
+                        <option value="COMPLETE">Complete</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Notes (optional)</label>
+                    <textarea id="modal-notes" rows="3" placeholder="Add any notes..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('status-modal')">Cancel</button>
+                <button class="btn btn-primary" onclick="updateStatus()">Update Status</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Email Modal -->
+    <div class="modal-overlay" id="email-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h2>Send Confirmation Email</h2>
+                <button class="modal-close" onclick="closeModal('email-modal')">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Quote ID</label>
+                    <input type="text" id="email-quote-id" readonly>
+                </div>
+                <div class="form-group">
+                    <label>Student Name</label>
+                    <input type="text" id="email-student-name" readonly>
+                </div>
+                <div class="form-group">
+                    <label>Email</label>
+                    <input type="text" id="email-student-email" readonly>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('email-modal')">Cancel</button>
+                <button class="btn btn-primary" onclick="sendConfirmationEmail()">Send Email</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Invoice Modal -->
+    <div class="modal-overlay" id="invoice-modal">
+        <div class="modal" style="max-width: 650px;">
+            <div class="modal-header">
+                <h2>Generate Invoice</h2>
+                <button class="modal-close" onclick="closeModal('invoice-modal')">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Invoice Number</label>
+                    <input type="text" id="invoice-number" readonly>
+                </div>
+                <div class="form-group">
+                    <label>Description</label>
+                    <input type="text" id="invoice-description" value="Kiln-dried timber to cutting list supplied">
+                </div>
+                <div class="form-group">
+                    <label>Notes/Terms</label>
+                    <textarea id="invoice-notes" rows="2" placeholder="e.g., Ready for pickup"></textarea>
+                </div>
+                <div class="invoice-preview" id="invoice-preview"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('invoice-modal')">Cancel</button>
+                <button class="btn btn-primary" onclick="downloadInvoice()">Download PDF</button>
+                <button class="btn btn-primary" style="background: #ea580c;" onclick="sendInvoice()">Email Invoice</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ===== API ENDPOINTS =====
+        const API = {
+            GET_QUOTES: 'https://ttimbers.app.n8n.cloud/webhook/get-quotes',
+            UPDATE_STATUS: 'https://ttimbers.app.n8n.cloud/webhook/update-status',
+            SEND_CONFIRMATION: 'https://ttimbers.app.n8n.cloud/webhook/send-confirmation',
+            GENERATE_INVOICE: 'https://ttimbers.app.n8n.cloud/webhook/generate-invoice',
+            SEND_COMPLETE_EMAIL: 'https://ttimbers.app.n8n.cloud/webhook/send-complete-email'
+        };
+
+        const COMPANY = {
+            name: 'Trend Timbers',
+            phone: '02 4577 5277',
+            email: 'info@trendtimbers.com.au',
+            abn: '69 124 544 412',
+            bank: { name: 'Westpac', accountName: 'RB AJ Clark PTY LTD', bsb: '032274', accountNumber: '249387' }
+        };
+
+        // ===== STATE =====
+        let allQuotes = [];
+        let selectedQuotes = [];
+        let currentQuoteId = null;
+        let currentQuoteData = null;
+        let sortConfig = { key: 'Timestamp', direction: 'desc' };
+        let activeDropdown = null;
+
+        // ===== INIT =====
+        document.addEventListener('DOMContentLoaded', () => {
+            loadQuotes();
+            document.getElementById('search-input').addEventListener('input', filterQuotes);
+            document.getElementById('status-filter').addEventListener('change', filterQuotes);
+            document.getElementById('delivery-filter').addEventListener('change', filterQuotes);
+
+            // Close dropdowns when clicking outside
+            document.addEventListener('click', (e) => {
+                if (!e.target.closest('.status-dropdown') && !e.target.closest('.actions-dropdown')) {
+                    closeAllDropdowns();
+                }
+            });
+        });
+
+        function closeAllDropdowns() {
+            document.querySelectorAll('.status-menu.active, .actions-menu.active').forEach(menu => {
+                menu.classList.remove('active');
+            });
+            activeDropdown = null;
+        }
+
+        // ===== LOAD QUOTES =====
+        async function loadQuotes() {
+            const content = document.getElementById('quotes-content');
+            content.innerHTML = '<div class="loading"><div class="spinner"></div><p>Loading quotes...</p></div>';
+
+            try {
+                const response = await fetch(API.GET_QUOTES);
+                const data = await response.json();
+                allQuotes = data.success && data.quotes ? data.quotes : (Array.isArray(data) ? data : []);
+                updateStats();
+                filterQuotes();
+            } catch (error) {
+                console.error('Error:', error);
+                content.innerHTML = '<div class="empty-state"><h3>Error Loading Quotes</h3><p>Please try refreshing.</p></div>';
+            }
+        }
+
+        // ===== STATS =====
+        function updateStats() {
+            document.getElementById('pending-count').textContent = allQuotes.filter(q => q.Status === 'PENDING').length;
+            document.getElementById('sent-count').textContent = allQuotes.filter(q => q.Status === 'QUOTE SENT' || q.Status === 'SENT').length;
+            document.getElementById('followup-count').textContent = allQuotes.filter(q => q.Status === 'FOLLOW UP').length;
+            document.getElementById('order-count').textContent = allQuotes.filter(q => q.Status === 'ORDER').length;
+            document.getElementById('complete-count').textContent = allQuotes.filter(q => q.Status === 'COMPLETE').length;
+            document.getElementById('total-count').textContent = allQuotes.length;
+        }
+
+        function filterByStatus(status) {
+            document.getElementById('status-filter').value = status;
+            filterQuotes();
+        }
+
+        // ===== FILTER & SORT =====
+        function filterQuotes() {
+            const search = document.getElementById('search-input').value.toLowerCase();
+            const statusFilter = document.getElementById('status-filter').value;
+            const deliveryFilter = document.getElementById('delivery-filter').value;
+
+            let filtered = allQuotes.filter(quote => {
+                const matchesSearch = !search || 
+                    (quote.StudentName?.toLowerCase().includes(search)) ||
+                    (quote.School?.toLowerCase().includes(search)) ||
+                    (quote.QuoteID?.toLowerCase().includes(search)) ||
+                    (quote.StudentEmail?.toLowerCase().includes(search));
+                const matchesStatus = !statusFilter || quote.Status === statusFilter || (statusFilter === 'QUOTE SENT' && quote.Status === 'SENT');
+                const matchesDelivery = !deliveryFilter || quote.DeliveryOption === deliveryFilter;
+                return matchesSearch && matchesStatus && matchesDelivery;
+            });
+
+            // Sort
+            filtered.sort((a, b) => {
+                let aVal = a[sortConfig.key] || '';
+                let bVal = b[sortConfig.key] || '';
+                
+                // Handle Total - parse as number
+                if (sortConfig.key === 'Total') {
+                    try {
+                        aVal = parseFloat(JSON.parse(a.TotalsJSON || '{}').total) || 0;
+                        bVal = parseFloat(JSON.parse(b.TotalsJSON || '{}').total) || 0;
+                    } catch(e) { aVal = 0; bVal = 0; }
+                }
+                
+                // Handle Timestamp - parse as date (DD/MM/YYYY, HH:MM:SS am/pm format)
+                if (sortConfig.key === 'Timestamp') {
+                    const parseDate = (dateStr) => {
+                        if (!dateStr) return new Date(0);
+                        // Format: "18/11/2025, 10:15:16 am"
+                        // First extract just the date part before the comma
+                        const datePart = dateStr.split(',')[0].trim();
+                        const parts = datePart.split('/');
+                        if (parts.length === 3) {
+                            const day = parseInt(parts[0], 10);
+                            const month = parseInt(parts[1], 10) - 1;
+                            const year = parseInt(parts[2], 10);
+                            
+                            // Try to extract time if available
+                            const timeMatch = dateStr.match(/(\d{1,2}):(\d{2}):(\d{2})\s*(am|pm)?/i);
+                            if (timeMatch) {
+                                let hours = parseInt(timeMatch[1], 10);
+                                const mins = parseInt(timeMatch[2], 10);
+                                const secs = parseInt(timeMatch[3], 10);
+                                const ampm = timeMatch[4];
+                                
+                                if (ampm && ampm.toLowerCase() === 'pm' && hours !== 12) hours += 12;
+                                if (ampm && ampm.toLowerCase() === 'am' && hours === 12) hours = 0;
+                                
+                                return new Date(year, month, day, hours, mins, secs);
+                            }
+                            return new Date(year, month, day);
+                        }
+                        return new Date(0);
+                    };
+                    aVal = parseDate(aVal).getTime();
+                    bVal = parseDate(bVal).getTime();
+                }
+                
+                if (typeof aVal === 'string') {
+                    aVal = aVal.toLowerCase();
+                    bVal = bVal.toLowerCase();
+                }
+                
+                if (aVal < bVal) return sortConfig.direction === 'asc' ? -1 : 1;
+                if (aVal > bVal) return sortConfig.direction === 'asc' ? 1 : -1;
+                return 0;
+            });
+
+            renderQuotes(filtered);
+        }
+
+        function handleSort(key) {
+            if (sortConfig.key === key) {
+                sortConfig.direction = sortConfig.direction === 'asc' ? 'desc' : 'asc';
+            } else {
+                sortConfig.key = key;
+                // Default to desc for dates (newest first), asc for everything else
+                sortConfig.direction = (key === 'Timestamp') ? 'desc' : 'asc';
+            }
+            filterQuotes();
+        }
+
+        function getSortIcon(key) {
+            if (sortConfig.key !== key) return '↕';
+            return sortConfig.direction === 'asc' ? '↑' : '↓';
+        }
+
+        // ===== RENDER =====
+        function renderQuotes(quotes) {
+            const content = document.getElementById('quotes-content');
+
+            if (quotes.length === 0) {
+                content.innerHTML = '<div class="empty-state"><h3>No Quotes Found</h3><p>No quotes match your criteria.</p></div>';
+                return;
+            }
+
+            let html = `
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th class="checkbox-cell no-sort"><input type="checkbox" id="select-all" onchange="toggleSelectAll(this.checked)"></th>
+                            <th onclick="handleSort('QuoteID')" class="${sortConfig.key === 'QuoteID' ? 'sorted' : ''}">ID <span class="sort-icon">${getSortIcon('QuoteID')}</span></th>
+                            <th onclick="handleSort('Timestamp')" class="${sortConfig.key === 'Timestamp' ? 'sorted' : ''}">Date <span class="sort-icon">${getSortIcon('Timestamp')}</span></th>
+                            <th onclick="handleSort('StudentName')" class="${sortConfig.key === 'StudentName' ? 'sorted' : ''}">Customer <span class="sort-icon">${getSortIcon('StudentName')}</span></th>
+                            <th onclick="handleSort('School')" class="${sortConfig.key === 'School' ? 'sorted' : ''}">School <span class="sort-icon">${getSortIcon('School')}</span></th>
+                            <th>Delivery</th>
+                            <th onclick="handleSort('Total')" class="${sortConfig.key === 'Total' ? 'sorted' : ''}">Total <span class="sort-icon">${getSortIcon('Total')}</span></th>
+                            <th>Status</th>
+                            <th class="no-sort">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            quotes.forEach(quote => {
+                let totals = {};
+                try { totals = JSON.parse(quote.TotalsJSON || '{}'); } catch(e) { totals = { subtotal: '0.00', gst: '0.00', total: '0.00' }; }
+
+                // Calculate costs properly - timber = subtotal + gst, NOT the total field
+                const deliveryCost = parseFloat(quote.DeliveryCost) || 0;
+                const subtotal = parseFloat(totals.subtotal) || 0;
+                const gst = parseFloat(totals.gst) || 0;
+                const timberCost = subtotal + gst; // This is the timber-only amount
+                const grandTotal = timberCost + deliveryCost; // True total including delivery
+                const hasDelivery = deliveryCost > 0;
+
+                const deliveryClass = quote.DeliveryOption === 'pickup' ? 'delivery-pickup' : 'delivery-delivery';
+                const deliveryIcon = quote.DeliveryOption === 'pickup' ? '🏪' : '🚚';
+                const deliveryText = quote.DeliveryOption === 'pickup' ? 'Pickup' : 'Delivery';
+                const isSelected = selectedQuotes.includes(quote.QuoteID);
+                const status = (quote.Status || 'PENDING').replace(/ /g, '-');
+                const quoteDataStr = encodeURIComponent(JSON.stringify(quote));
+
+                // Build price breakdown HTML
+                const priceBreakdownHTML = hasDelivery ? `
+                    <div class="price-breakdown">
+                        <div class="price-breakdown-title">💰 Price Breakdown</div>
+                        <div class="price-breakdown-row">
+                            <span>Timber Supply:</span>
+                            <span>$${timberCost.toFixed(2)}</span>
+                        </div>
+                        <div class="price-breakdown-row delivery">
+                            <span>🚚 Delivery:</span>
+                            <span>$${deliveryCost.toFixed(2)}</span>
+                        </div>
+                        <div class="price-breakdown-row total">
+                            <span>TOTAL:</span>
+                            <span>$${grandTotal.toFixed(2)}</span>
+                        </div>
+                    </div>
+                ` : `
+                    <div class="price-breakdown">
+                        <div class="price-breakdown-title">💰 Price Breakdown</div>
+                        <div class="price-breakdown-row">
+                            <span>Timber Supply:</span>
+                            <span>$${grandTotal.toFixed(2)}</span>
+                        </div>
+                        <div class="price-breakdown-row" style="color: #047857;">
+                            <span>🏪 Pickup:</span>
+                            <span>No charge</span>
+                        </div>
+                        <div class="price-breakdown-row total">
+                            <span>TOTAL:</span>
+                            <span>$${grandTotal.toFixed(2)}</span>
+                        </div>
+                    </div>
+                `;
+
+                html += `
+                    <tr class="${isSelected ? 'selected' : ''}">
+                        <td class="checkbox-cell">
+                            <input type="checkbox" ${isSelected ? 'checked' : ''} onchange="toggleQuoteSelection('${quote.QuoteID}', this.checked)">
+                        </td>
+                        <td><span class="quote-id">${quote.QuoteID || '-'}</span></td>
+                        <td>${quote.Timestamp || '-'}</td>
+                        <td>
+                            <div class="customer-name">${quote.StudentName || '-'}</div>
+                            <div class="customer-email">${quote.StudentEmail || ''}</div>
+                        </td>
+                        <td>
+                            <div class="school-name">${quote.School || '-'}</div>
+                            <div class="teacher-name">${quote.Teacher || ''}</div>
+                        </td>
+                        <td><span class="delivery-badge ${deliveryClass}">${deliveryIcon} ${deliveryText}</span></td>
+                        <td class="price-cell">
+                            <span class="total-with-info">
+                                <span class="total-amount">$${grandTotal.toFixed(2)}</span>
+                                ${hasDelivery ? '<span class="info-hint">ℹ️</span>' : ''}
+                            </span>
+                            ${priceBreakdownHTML}
+                        </td>
+                        <td>
+                            <div class="status-dropdown">
+                                <div class="status-badge status-${status}" onclick="toggleStatusMenu(event, '${quote.QuoteID}')">
+                                    ${quote.Status || 'PENDING'}
+                                </div>
+                                <div class="status-menu" id="status-menu-${quote.QuoteID}">
+                                    <div class="status-menu-item ${quote.Status === 'PENDING' ? 'current' : ''}" onclick="event.stopPropagation(); quickChangeStatus('${quote.QuoteID}', 'PENDING')">
+                                        <span class="status-dot dot-pending"></span> Pending
+                                    </div>
+                                    <div class="status-menu-item ${quote.Status === 'QUOTE SENT' ? 'current' : ''}" onclick="event.stopPropagation(); quickChangeStatus('${quote.QuoteID}', 'QUOTE SENT')">
+                                        <span class="status-dot dot-sent"></span> Quote Sent
+                                    </div>
+                                    <div class="status-menu-item ${quote.Status === 'FOLLOW UP' ? 'current' : ''}" onclick="event.stopPropagation(); quickChangeStatus('${quote.QuoteID}', 'FOLLOW UP')">
+                                        <span class="status-dot dot-followup"></span> Follow Up
+                                    </div>
+                                    <div class="status-menu-item ${quote.Status === 'ORDER' ? 'current' : ''}" onclick="event.stopPropagation(); quickChangeStatus('${quote.QuoteID}', 'ORDER')">
+                                        <span class="status-dot dot-order"></span> Order
+                                    </div>
+                                    <div class="status-menu-item ${quote.Status === 'COMPLETE' ? 'current' : ''}" onclick="event.stopPropagation(); quickChangeStatus('${quote.QuoteID}', 'COMPLETE')">
+                                        <span class="status-dot dot-complete"></span> Complete
+                                    </div>
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="actions-dropdown">
+                                <button class="actions-btn" onclick="toggleActionsMenu(event, '${quote.QuoteID}')">
+                                    Actions ▾
+                                </button>
+                                <div class="actions-menu" id="actions-menu-${quote.QuoteID}">
+                                    <div class="actions-menu-item ${quote.OriginalFile ? '' : 'disabled'}" onclick="event.stopPropagation(); ${quote.OriginalFile ? `window.open('${quote.OriginalFile}', '_blank'); closeAllDropdowns();` : ''}">
+                                        <span class="icon">📄</span> View Document
+                                    </div>
+                                    <div class="actions-menu-item ${quote.approvalLink ? '' : 'disabled'}" onclick="event.stopPropagation(); ${quote.approvalLink ? `window.open('${quote.approvalLink}', '_blank'); closeAllDropdowns();` : ''}">
+                                        <span class="icon">✏️</span> View/Edit Quote
+                                    </div>
+                                    <div class="actions-menu-item ${quote.EmailHTML ? '' : 'disabled'}" onclick="event.stopPropagation(); viewSentEmail('${quote.QuoteID}', '${(quote.StudentName || '').replace(/'/g, "\\'")}', '${quote.StudentEmail}', allQuotes)">
+                                        <span class="icon">📧</span> View Sent Email
+                                    </div>
+                                    <div class="actions-menu-item ${quote.PickingSlipHTML ? '' : 'disabled'}" onclick="event.stopPropagation(); viewPickingSlip('${quote.QuoteID}', allQuotes)">
+                                        <span class="icon">📋</span> View Picking Slip
+                                    </div>
+                                    <div class="actions-menu-divider"></div>
+                                    <div class="actions-menu-item" onclick="event.stopPropagation(); openEmailModal('${quote.QuoteID}', '${(quote.StudentName || '').replace(/'/g, "\\'")}', '${quote.StudentEmail || ''}')">
+                                        <span class="icon">📧</span> Send Confirmation
+                                    </div>
+                                    <div class="actions-menu-item" onclick="event.stopPropagation(); openInvoiceModal('${quote.QuoteID}', '${quoteDataStr}')">
+                                        <span class="icon">🧾</span> Generate Invoice
+                                    </div>
+                                    ${(quote.Status === 'ORDER' || quote.Status === 'COMPLETE') ? `
+                                    <div class="actions-menu-item" onclick="event.stopPropagation(); openWorkOrder('${quote.QuoteID}')">
+                                        <span class="icon">📋</span> Work Order
+                                    </div>
+                                    ` : ''}
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            });
+
+            html += '</tbody></table>';
+            content.innerHTML = html;
+            updateSelectAllCheckbox();
+        }
+
+        // ===== DROPDOWN TOGGLES =====
+        function toggleStatusMenu(event, quoteId) {
+            event.stopPropagation();
+            const menu = document.getElementById(`status-menu-${quoteId}`);
+            const wasActive = menu.classList.contains('active');
+            closeAllDropdowns();
+            if (!wasActive) menu.classList.add('active');
+        }
+
+        function toggleActionsMenu(event, quoteId) {
+            event.stopPropagation();
+            const menu = document.getElementById(`actions-menu-${quoteId}`);
+            const wasActive = menu.classList.contains('active');
+            closeAllDropdowns();
+            if (!wasActive) menu.classList.add('active');
+        }
+
+        // ===== QUICK STATUS CHANGE =====
+        async function quickChangeStatus(quoteId, newStatus) {
+            event.stopPropagation(); // Prevent event bubbling
+            closeAllDropdowns();
+            
+            const quote = allQuotes.find(q => q.QuoteID === quoteId);
+            if (!quote || quote.Status === newStatus) return;
+
+            // Confirm for ORDER and COMPLETE as they trigger emails
+            if (newStatus === 'ORDER') {
+                if (!confirm(`Change to ORDER? This will send a confirmation email to the customer.`)) return;
+            } else if (newStatus === 'COMPLETE') {
+                if (!confirm(`Change to COMPLETE? This will send a "Ready for Collection/Dispatch" email.`)) return;
+            }
+
+            console.log('Updating status:', quoteId, 'to', newStatus);
+
+            try {
+                const response = await fetch(API.UPDATE_STATUS, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ quoteId, status: newStatus })
+                });
+
+                console.log('Status update response:', response.status);
+
+                if (!response.ok) {
+                    throw new Error('Failed to update status');
+                }
+
+                const oldStatus = quote.Status;
+                quote.Status = newStatus;
+
+                // If changed to ORDER, send confirmation email
+                if (newStatus === 'ORDER' && oldStatus !== 'ORDER') {
+                    await sendOrderConfirmationEmail(quote);
+                }
+
+                // If changed to COMPLETE, send complete email
+                if (newStatus === 'COMPLETE' && oldStatus !== 'COMPLETE') {
+                    await sendCompleteEmail(quote);
+                }
+
+                updateStats();
+                filterQuotes();
+                showToast(`Status updated to ${newStatus}`, 'success');
+            } catch (error) {
+                console.error('Error updating status:', error);
+                showToast('Error updating status', 'error');
+            }
+        }
+
+        // Helper to send order confirmation email
+        async function sendOrderConfirmationEmail(quote) {
+            try {
+                console.log('Sending confirmation email for:', quote.QuoteID);
+                await fetch(API.SEND_CONFIRMATION, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ quoteId: quote.QuoteID })
+                });
+            } catch (err) {
+                console.error('Error sending confirmation email:', err);
+            }
+        }
+
+        // Helper to send complete/ready email
+        async function sendCompleteEmail(quote) {
+            try {
+                console.log('Sending complete email for:', quote.QuoteID);
+                await fetch(API.SEND_COMPLETE_EMAIL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ quoteId: quote.QuoteID })
+                });
+            } catch (err) {
+                console.error('Error sending complete email:', err);
+            }
+        }
+
+        // ===== SELECTION =====
+        function toggleSelectAll(checked) {
+            const rows = document.querySelectorAll('.data-table tbody input[type="checkbox"]');
+            rows.forEach(cb => {
+                const quoteId = cb.closest('tr').querySelector('.quote-id').textContent;
+                if (checked) {
+                    if (!selectedQuotes.includes(quoteId)) selectedQuotes.push(quoteId);
+                } else {
+                    selectedQuotes = selectedQuotes.filter(id => id !== quoteId);
+                }
+                cb.checked = checked;
+            });
+            updateBulkBar();
+        }
+
+        function toggleQuoteSelection(quoteId, checked) {
+            if (checked) {
+                if (!selectedQuotes.includes(quoteId)) selectedQuotes.push(quoteId);
+            } else {
+                selectedQuotes = selectedQuotes.filter(id => id !== quoteId);
+            }
+            updateSelectAllCheckbox();
+            updateBulkBar();
+        }
+
+        function updateSelectAllCheckbox() {
+            const selectAll = document.getElementById('select-all');
+            if (selectAll) {
+                const rows = document.querySelectorAll('.data-table tbody tr');
+                const allChecked = rows.length > 0 && Array.from(rows).every(row => {
+                    const id = row.querySelector('.quote-id')?.textContent;
+                    return selectedQuotes.includes(id);
+                });
+                selectAll.checked = allChecked;
+            }
+        }
+
+        function updateBulkBar() {
+            const bar = document.getElementById('bulk-bar');
+            document.getElementById('selected-count').textContent = selectedQuotes.length;
+            bar.classList.toggle('active', selectedQuotes.length > 0);
+        }
+
+        function clearSelection() {
+            selectedQuotes = [];
+            filterQuotes();
+            updateBulkBar();
+        }
+
+        // ===== BULK STATUS CHANGE =====
+        async function bulkChangeStatus(newStatus) {
+            let confirmMessage = `Change ${selectedQuotes.length} quote(s) to "${newStatus}"?`;
+            
+            if (newStatus === 'ORDER') {
+                confirmMessage += '\n\nThis will send confirmation emails to all selected customers.';
+            } else if (newStatus === 'COMPLETE') {
+                confirmMessage += '\n\nThis will send "Ready for Collection/Dispatch" emails to all selected customers.';
+            }
+
+            if (!confirm(confirmMessage)) return;
+
+            showToast(`Updating ${selectedQuotes.length} quotes...`, 'success');
+
+            for (const quoteId of selectedQuotes) {
+                try {
+                    await fetch(API.UPDATE_STATUS, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ quoteId, status: newStatus })
+                    });
+
+                    const quote = allQuotes.find(q => q.QuoteID === quoteId);
+                    if (quote) {
+                        const oldStatus = quote.Status;
+                        quote.Status = newStatus;
+
+                        // If changed to ORDER, send confirmation email
+                        if (newStatus === 'ORDER' && oldStatus !== 'ORDER') {
+                            await sendOrderConfirmationEmail(quote);
+                        }
+
+                        // If changed to COMPLETE, send complete email
+                        if (newStatus === 'COMPLETE' && oldStatus !== 'COMPLETE') {
+                            await sendCompleteEmail(quote);
+                        }
+                    }
+                } catch (err) {
+                    console.error('Error updating:', quoteId, err);
+                }
+            }
+
+            clearSelection();
+            updateStats();
+            filterQuotes();
+            showToast('Status updated!', 'success');
+        }
+
+        // ===== MODALS =====
+        function openStatusModal(quoteId, currentStatus, notes) {
+            closeAllDropdowns();
+            document.getElementById('modal-quote-id').value = quoteId;
+            document.getElementById('modal-status').value = currentStatus;
+            document.getElementById('modal-notes').value = notes || '';
+            document.getElementById('status-modal').classList.add('active');
+            currentQuoteId = quoteId;
+        }
+
+        function openEmailModal(quoteId, name, email) {
+            closeAllDropdowns();
+            document.getElementById('email-quote-id').value = quoteId;
+            document.getElementById('email-student-name').value = name;
+            document.getElementById('email-student-email').value = email;
+            document.getElementById('email-modal').classList.add('active');
+            currentQuoteId = quoteId;
+        }
+
+        function openInvoiceModal(quoteId, quoteDataStr) {
+            closeAllDropdowns();
+            try {
+                currentQuoteData = JSON.parse(decodeURIComponent(quoteDataStr));
+                currentQuoteId = quoteId;
+
+                const invoiceNum = quoteId.replace('TT-', 'INV-');
+                document.getElementById('invoice-number').value = invoiceNum;
+
+                let totals = {};
+                try { totals = JSON.parse(currentQuoteData.TotalsJSON || '{}'); } catch(e) {}
+
+                // Calculate costs properly - timber = subtotal + gst
+                const deliveryCost = parseFloat(currentQuoteData.DeliveryCost) || 0;
+                const subtotal = parseFloat(totals.subtotal) || 0;
+                const gst = parseFloat(totals.gst) || 0;
+                const timberCost = subtotal + gst; // Timber-only amount
+                const grandTotal = timberCost + deliveryCost; // True total with delivery
+                const hasDelivery = deliveryCost > 0;
+                const deliveryType = currentQuoteData.DeliveryOption === 'pickup' ? '🏪 Pickup' : '🚚 Delivery';
+
+                // Build breakdown HTML
+                const breakdownHTML = hasDelivery ? `
+                    <tr><td>Timber Supply:</td><td style="text-align:right;">$${timberCost.toFixed(2)}</td></tr>
+                    <tr style="background:#eff6ff;"><td>🚚 Delivery:</td><td style="text-align:right;color:#1d4ed8;">$${deliveryCost.toFixed(2)}</td></tr>
+                    <tr style="border-top:2px solid #055902;font-size:16px;"><td><strong>TOTAL:</strong></td><td style="text-align:right;"><strong>$${grandTotal.toFixed(2)}</strong></td></tr>
+                ` : `
+                    <tr><td>Timber Supply:</td><td style="text-align:right;">$${grandTotal.toFixed(2)}</td></tr>
+                    <tr style="background:#ecfdf5;"><td>🏪 Pickup:</td><td style="text-align:right;color:#047857;">No charge</td></tr>
+                    <tr style="border-top:2px solid #055902;font-size:16px;"><td><strong>TOTAL:</strong></td><td style="text-align:right;"><strong>$${grandTotal.toFixed(2)}</strong></td></tr>
+                `;
+
+                document.getElementById('invoice-preview').innerHTML = `
+                    <div class="invoice-header-preview">
+                        <div><strong>${COMPANY.name}</strong><br><small>ABN: ${COMPANY.abn}</small></div>
+                        <div style="text-align: right;"><strong>TAX INVOICE</strong><br>${invoiceNum}</div>
+                    </div>
+                    <div style="margin:15px 0;padding:10px;background:#f8f9fa;border-radius:5px;">
+                        <div><strong>Bill To:</strong> ${currentQuoteData.StudentName || '-'}</div>
+                        <div style="color:#666;font-size:13px;">${currentQuoteData.School || ''}</div>
+                        <div style="color:#666;font-size:13px;">${currentQuoteData.StudentEmail || ''}</div>
+                    </div>
+                    <div class="invoice-totals" style="background:#fff;border:2px solid #055902;border-radius:8px;padding:15px;">
+                        <div style="font-weight:bold;color:#055902;margin-bottom:10px;font-size:14px;">💰 PAYMENT DETAILS</div>
+                        <table style="width:100%;">
+                            ${breakdownHTML}
+                        </table>
+                    </div>
+                `;
+
+                document.getElementById('invoice-modal').classList.add('active');
+            } catch (e) {
+                console.error('Error:', e);
+                showToast('Error loading invoice data', 'error');
+            }
+        }
+
+        function openWorkOrder(quoteId) {
+            closeAllDropdowns();
+            window.open(`https://ttimbers.app.n8n.cloud/webhook/work-order?id=${quoteId}`, '_blank');
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).classList.remove('active');
+            currentQuoteId = null;
+            currentQuoteData = null;
+        }
+
+        // Close modals on overlay click
+        document.querySelectorAll('.modal-overlay').forEach(overlay => {
+            overlay.addEventListener('click', (e) => {
+                if (e.target === overlay) overlay.classList.remove('active');
+            });
+        });
+
+        // ===== API ACTIONS =====
+        async function updateStatus() {
+            const quoteId = document.getElementById('modal-quote-id').value;
+            const newStatus = document.getElementById('modal-status').value;
+            const notes = document.getElementById('modal-notes').value;
+
+            try {
+                await fetch(API.UPDATE_STATUS, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ quoteId, status: newStatus, notes })
+                });
+
+                const quote = allQuotes.find(q => q.QuoteID === quoteId);
+                if (quote) {
+                    quote.Status = newStatus;
+                    quote.Notes = notes;
+                }
+
+                closeModal('status-modal');
+                updateStats();
+                filterQuotes();
+                showToast('Status updated!', 'success');
+            } catch (error) {
+                console.error('Error:', error);
+                showToast('Error updating status', 'error');
+            }
+        }
+
+        async function sendConfirmationEmail() {
+            const quoteId = document.getElementById('email-quote-id').value;
+
+            if (!confirm('Send confirmation email? This will update status to ORDER and email the customer.')) return;
+
+            console.log('Sending confirmation email for:', quoteId);
+
+            try {
+                const response = await fetch(API.SEND_CONFIRMATION, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ quoteId })
+                });
+
+                console.log('Send confirmation response:', response.status);
+
+                if (!response.ok) {
+                    throw new Error('Failed to send confirmation');
+                }
+
+                const quote = allQuotes.find(q => q.QuoteID === quoteId);
+                if (quote) quote.Status = 'ORDER';
+
+                closeModal('email-modal');
+                updateStats();
+                filterQuotes();
+                showToast('Confirmation email sent!', 'success');
+            } catch (error) {
+                console.error('Error sending email:', error);
+                showToast('Error sending email', 'error');
+            }
+        }
+
+        async function downloadInvoice() {
+            if (!currentQuoteData?.QuoteID) {
+                showToast('No quote data loaded', 'error');
+                return;
+            }
+
+            console.log('Downloading invoice for:', currentQuoteData.QuoteID);
+
+            try {
+                const requestBody = {
+                    quoteId: currentQuoteData.QuoteID,
+                    invoiceNumber: document.getElementById('invoice-number').value,
+                    description: document.getElementById('invoice-description').value,
+                    notes: document.getElementById('invoice-notes').value,
+                    action: 'download'
+                };
+                
+                console.log('Invoice request:', requestBody);
+
+                const response = await fetch(API.GENERATE_INVOICE, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(requestBody)
+                });
+
+                console.log('Invoice response:', response.status);
+
+                if (response.ok) {
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `${document.getElementById('invoice-number').value}.pdf`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    window.URL.revokeObjectURL(url);
+                    showToast('Invoice downloaded!', 'success');
+                } else {
+                    throw new Error('Failed to generate invoice');
+                }
+            } catch (error) {
+                console.error('Error generating invoice:', error);
+                showToast('Error generating invoice', 'error');
+            }
+        }
+
+        async function sendInvoice() {
+            if (!currentQuoteData?.QuoteID) {
+                showToast('No quote data loaded', 'error');
+                return;
+            }
+
+            if (!confirm(`Send invoice to ${currentQuoteData.StudentName}?`)) return;
+
+            console.log('Sending invoice for:', currentQuoteData.QuoteID);
+
+            try {
+                const requestBody = {
+                    quoteId: currentQuoteData.QuoteID,
+                    invoiceNumber: document.getElementById('invoice-number').value,
+                    description: document.getElementById('invoice-description').value,
+                    notes: document.getElementById('invoice-notes').value,
+                    customerEmail: currentQuoteData.StudentEmail,
+                    customerName: currentQuoteData.StudentName,
+                    action: 'send'
+                };
+
+                console.log('Invoice send request:', requestBody);
+
+                const response = await fetch(API.GENERATE_INVOICE, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(requestBody)
+                });
+
+                console.log('Invoice send response:', response.status);
+
+                if (response.ok) {
+                    showToast('Invoice sent!', 'success');
+                    closeModal('invoice-modal');
+                } else {
+                    throw new Error('Failed to send invoice');
+                }
+            } catch (error) {
+                console.error('Error sending invoice:', error);
+                showToast('Error sending invoice', 'error');
+            }
+        }
+
+        // ===== TOAST =====
+        function showToast(message, type) {
+            const existing = document.querySelector('.toast');
+            if (existing) existing.remove();
+
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.innerHTML = `${type === 'success' ? '✓' : '✕'} ${message}`;
+            document.body.appendChild(toast);
+
+            setTimeout(() => toast.remove(), 4000);
+        }
+    
+
+        // ===== VIEW SENT EMAIL =====
+        function viewSentEmail(quoteId, studentName, studentEmail, quotes) {
+            const quote = quotes.find(q => q.QuoteID === quoteId);
+            if (!quote || !quote.EmailHTML) {
+                alert('No sent email found for this quote. The quote may not have been sent yet.');
+                return;
+            }
+            
+            closeAllDropdowns();
+            
+            document.getElementById('sent-email-quote-id').textContent = quoteId;
+            document.getElementById('sent-email-to').textContent = `${studentName} <${studentEmail}>`;
+            
+            const iframe = document.getElementById('sent-email-iframe');
+            iframe.srcdoc = quote.EmailHTML;
+            
+            document.getElementById('sent-email-modal').classList.add('active');
+        }
+        
+        function printSentEmail() {
+            const iframe = document.getElementById('sent-email-iframe');
+            iframe.contentWindow.print();
+        }
+
+        // ===== VIEW PICKING SLIP =====
+        function viewPickingSlip(quoteId, quotes) {
+            const quote = quotes.find(q => q.QuoteID === quoteId);
+            if (!quote || !quote.PickingSlipHTML) {
+                alert('No picking slip found for this quote. The quote may not have been sent yet.');
+                return;
+            }
+            
+            closeAllDropdowns();
+            
+            document.getElementById('picking-slip-quote-id').textContent = quoteId;
+            
+            const iframe = document.getElementById('picking-slip-iframe');
+            iframe.srcdoc = quote.PickingSlipHTML;
+            
+            document.getElementById('picking-slip-modal').classList.add('active');
+        }
+        
+        function printPickingSlip() {
+            const iframe = document.getElementById('picking-slip-iframe');
+            iframe.contentWindow.print();
+        }
+
+</script>
+
+    <!-- VIEW SENT EMAIL MODAL -->
+    <div class="modal-overlay" id="sent-email-modal">
+        <div class="modal-content" style="width: 95vw; max-width: 900px; height: 90vh; overflow: hidden; display: flex; flex-direction: column; background: white; border-radius: 12px; box-shadow: 0 20px 60px rgba(0,0,0,0.3);">
+            <div class="modal-header" style="flex-shrink: 0; padding: 20px; border-bottom: 1px solid #e5e7eb; display: flex; justify-content: space-between; align-items: center;">
+                <h2 style="margin: 0; font-size: 18px; color: #055902;">📧 Sent Email Preview</h2>
+                <button class="modal-close" onclick="closeModal('sent-email-modal')" style="background: none; border: none; font-size: 28px; cursor: pointer; color: #666; line-height: 1;">&times;</button>
+            </div>
+            <div class="modal-body" style="padding: 0; flex-grow: 1; overflow: hidden; display: flex; flex-direction: column;">
+                <div style="padding: 15px; background: #f5f5f5; border-bottom: 1px solid #ddd;">
+                    <div style="display: flex; gap: 20px; flex-wrap: wrap;">
+                        <div><strong>Quote:</strong> <span id="sent-email-quote-id"></span></div>
+                        <div><strong>To:</strong> <span id="sent-email-to"></span></div>
+                        <div><strong>Status:</strong> <span class="status-badge status-SENT" style="padding: 3px 8px; font-size: 11px;">SENT</span></div>
+                    </div>
+                </div>
+                <iframe id="sent-email-iframe" style="width: 100%; flex-grow: 1; min-height: 0; border: none; background: white;"></iframe>
+            </div>
+            <div class="modal-footer" style="flex-shrink: 0; padding: 15px 20px; border-top: 1px solid #e5e7eb; display: flex; justify-content: flex-end; gap: 10px; background: #f9fafb;">
+                <button class="btn btn-secondary" onclick="closeModal('sent-email-modal')">Close</button>
+                <button class="btn btn-primary" onclick="printSentEmail()">🖨️ Print</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- VIEW PICKING SLIP MODAL -->
+    <div class="modal-overlay" id="picking-slip-modal">
+        <div class="modal-content" style="width: 95vw; max-width: 1100px; height: 90vh; overflow: hidden; display: flex; flex-direction: column; background: white; border-radius: 12px; box-shadow: 0 20px 60px rgba(0,0,0,0.3);">
+            <div class="modal-header" style="flex-shrink: 0; padding: 20px; border-bottom: 1px solid #e5e7eb; display: flex; justify-content: space-between; align-items: center;">
+                <h2 style="margin: 0; font-size: 18px; color: #055902;">📋 Picking Slip / Cutting List</h2>
+                <button class="modal-close" onclick="closeModal('picking-slip-modal')" style="background: none; border: none; font-size: 28px; cursor: pointer; color: #666; line-height: 1;">&times;</button>
+            </div>
+            <div class="modal-body" style="padding: 0; flex-grow: 1; overflow: hidden; display: flex; flex-direction: column;">
+                <div style="padding: 15px; background: #f5f5f5; border-bottom: 1px solid #ddd;">
+                    <div><strong>Quote:</strong> <span id="picking-slip-quote-id"></span></div>
+                </div>
+                <iframe id="picking-slip-iframe" style="width: 100%; flex-grow: 1; min-height: 0; border: none; background: white;"></iframe>
+            </div>
+            <div class="modal-footer" style="flex-shrink: 0; padding: 15px 20px; border-top: 1px solid #e5e7eb; display: flex; justify-content: flex-end; gap: 10px; background: #f9fafb;">
+                <button class="btn btn-secondary" onclick="closeModal('picking-slip-modal')">Close</button>
+                <button class="btn btn-primary" onclick="printPickingSlip()">🖨️ Print</button>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>
