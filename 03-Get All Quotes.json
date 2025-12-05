@@ -1,0 +1,129 @@
+{
+  "name": "03-Get All Quotes",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "get-quotes",
+        "authentication": "headerAuth",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "e7ab029c-8ae2-4e00-a420-1c1787506292",
+      "name": "Webhook",
+      "webhookId": "a248326d-d9c9-43a2-9eee-d2a814c6cc80",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "Q1g8x0uAR0rJOPnh",
+          "name": "Header Auth account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1so-VLU9J8yCwIVoYcu1cV9hoQlAnCgHqRJmXBwkq1bA",
+          "mode": "list",
+          "cachedResultName": "Quote Approvals",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1so-VLU9J8yCwIVoYcu1cV9hoQlAnCgHqRJmXBwkq1bA/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1so-VLU9J8yCwIVoYcu1cV9hoQlAnCgHqRJmXBwkq1bA/edit#gid=0"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        208,
+        0
+      ],
+      "id": "cf523135-487d-49dc-8543-88526e37848c",
+      "name": "Get row(s) in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "TeHCKMqPMDM8G6HR",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// =====================================================\n// TREND TIMBERS - GET ALL QUOTES v2\n// =====================================================\n// ✅ NEW: Returns EmailHTML for \"View Sent Email\" feature\n// ✅ NEW: Returns PickingSlipHTML for \"View Picking Slip\" feature\n// =====================================================\n\nconst rows = $input.all();\n\n// Map sheet data to clean format\nconst quotes = rows.map(row => {\n  const data = row.json;\n  return {\n    QuoteID: data.QuoteID || '',\n    Timestamp: data.Timestamp || '',\n    StudentName: data.StudentName || '',\n    StudentEmail: data.StudentEmail || '',\n    StudentMobile: data.StudentMobile || '',\n    School: data.School || '',\n    Teacher: data.Teacher || '',\n    DeliveryOption: data.DeliveryOption || 'pickup',\n    ComponentsJSON: data.ComponentsJSON || '[]',\n    TotalsJSON: data.TotalsJSON || '{}',\n    Status: data.Status || 'PENDING',\n    DeliveryCost: data.DeliveryCost || '0',\n    Notes: data.Notes || '',\n    SentDate: data.SentDate || '',\n    OriginalFile: data.OriginalFile || '',\n    approvalLink: data.approvalLink || '',\n    \n    // ✅ NEW: Include the sent email HTML (for \"View Sent Email\" feature)\n    EmailHTML: data.EmailHTML || '',\n    \n    // ✅ NEW: Include the picking slip HTML (for \"View Picking Slip\" feature)\n    PickingSlipHTML: data.PickingSlipHTML || ''\n  };\n});\n\n// Sort by timestamp (newest first)\nquotes.sort((a, b) => new Date(b.Timestamp) - new Date(a.Timestamp));\n\nreturn [{\n  json: {\n    success: true,\n    quotes: quotes,\n    total: quotes.length\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        416,
+        0
+      ],
+      "id": "92de49cb-4d58-431f-b86c-5ae0c0ff24ec",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "options": {
+          "responseKey": "="
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        624,
+        0
+      ],
+      "id": "df5fc0b6-e617-4c0d-b9d2-39ab2fc93f36",
+      "name": "Respond to Webhook"
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Get row(s) in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get row(s) in sheet": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "pinData": {}
+}
