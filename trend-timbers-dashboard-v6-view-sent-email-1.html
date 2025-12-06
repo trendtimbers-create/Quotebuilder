@@ -1074,12 +1074,13 @@
         const API_KEY = 'EbonyMaple';
 
         // Helper function for authenticated API calls
-        function authFetch(url, options = {}) {
-            const headers = {
-                'X-API-Key': API_KEY,
-                ...(options.headers || {})
-            };
-            return fetch(url, { ...options, headers });
+        function authFetch(url, options) {
+            options = options || {};
+            var headers = Object.assign({}, options.headers || {}, {
+                'X-API-Key': API_KEY
+            });
+            var fetchOptions = Object.assign({}, options, { headers: headers });
+            return fetch(url, fetchOptions);
         }
 
         const COMPANY = {
