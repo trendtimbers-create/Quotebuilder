@@ -1,0 +1,756 @@
+{
+  "name": "07-Generate Invoice",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "generate-invoice",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "c8962802-c230-4a3e-a8ae-038aa82c25d9",
+      "name": "Webhook",
+      "webhookId": "accfe5d1-38be-4a03-80be-af5a0cf07045"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1so-VLU9J8yCwIVoYcu1cV9hoQlAnCgHqRJmXBwkq1bA",
+          "mode": "list",
+          "cachedResultName": "Quote Approvals",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1so-VLU9J8yCwIVoYcu1cV9hoQlAnCgHqRJmXBwkq1bA/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1so-VLU9J8yCwIVoYcu1cV9hoQlAnCgHqRJmXBwkq1bA/edit#gid=0"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "QuoteID",
+              "lookupValue": "={{ $('Webhook').first().json.body.quoteId }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        208,
+        0
+      ],
+      "id": "dcb64588-d034-4d13-9cfd-660a6af113c9",
+      "name": "Get Quote Data",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "CBU0H80s5UVbkRlf",
+          "name": "Google Sheets account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// =====================================================\n// TREND TIMBERS - BUILD INVOICE HTML v3\n// Fixes:\n// 1. Email subject now properly outputs invoice number\n// 2. Description includes timber species from components\n// 3. Filename is INV-0632-Matt-Southwell.pdf format\n// 4. ✅ NEW: Separates timber cost from delivery cost\n// =====================================================\n\n// Get data from the PREVIOUS node (Google Sheets)\nconst quoteData = $input.first().json;\n\n// Get webhook data - it should be passed through from earlier nodes\nconst webhookBody = $('Webhook').first().json.body;\n\n// Invoice details from webhook or defaults\nconst invoiceNumber = webhookBody.invoiceNumber || quoteData.QuoteID?.replace('TT-', 'INV-') || 'INV-0001';\nconst notes = webhookBody.notes || (quoteData.DeliveryOption === 'pickup' ? 'Ready for pickup' : 'For delivery');\nconst action = webhookBody.action || 'download';\n\n// Parse components to get timber species\nlet components = [];\ntry {\n    if (typeof quoteData.ComponentsJSON === 'string') {\n        components = JSON.parse(quoteData.ComponentsJSON);\n    } else if (Array.isArray(quoteData.ComponentsJSON)) {\n        components = quoteData.ComponentsJSON;\n    }\n} catch(e) {\n    console.log('Error parsing components:', e);\n}\n\n// Extract unique species from components\nconst speciesSet = new Set();\ncomponents.forEach(comp => {\n    if (comp.species) {\n        speciesSet.add(comp.species);\n    }\n});\nconst speciesList = Array.from(speciesSet);\n\n// Title case function - capitalizes first letter of each word\nfunction toTitleCase(str) {\n    if (!str) return '';\n    return str.toLowerCase().replace(/\\b\\w/g, char => char.toUpperCase());\n}\n\n// Build the description with species names\nlet description;\nif (webhookBody.description && webhookBody.description !== 'Kiln-dried timber to cutting list supplied') {\n    // Use custom description if provided and not the default\n    description = webhookBody.description;\n} else if (speciesList.length > 0) {\n    // Build description with species: \"Kiln-dried Tasmanian Oak, NSW Spotted Gum to cutting list supplied\"\n    description = `Kiln-dried ${speciesList.join(', ')} to cover cutting list supplied`;\n} else {\n    // Fallback\n    description = 'Kiln-dried timber to cover cutting list supplied';\n}\n\n// Customer name for filename (sanitize: replace spaces with dashes, remove special chars)\nconst customerName = toTitleCase(quoteData.StudentName || 'Customer');\nconst customerNameSanitized = customerName\n    .replace(/[^a-zA-Z0-9\\s-]/g, '') // Remove special chars except spaces and dashes\n    .replace(/\\s+/g, '-')            // Replace spaces with dashes\n    .replace(/-+/g, '-')             // Remove multiple dashes\n    .trim();\n\n// Build filename: INV-0632-Matt-Southwell.pdf\nconst fileName = `${invoiceNumber}-${customerNameSanitized}.pdf`;\n\n// Company Information\nconst COMPANY = {\n    name: 'Trend Timbers',\n    address: '15 Railway Road North, Mulgrave, NSW 2756',\n    phone: '02 4577 5277',\n    email: 'info@trendtimbers.com.au',\n    abn: '69 124 544 412',\n    bank: {\n        name: 'Westpac',\n        accountName: 'RB AJ Clark PTY LTD',\n        bsb: '032274',\n        accountNumber: '249387'\n    }\n};\n\n// Parse totals from quote\nlet totals = { subtotal: '0.00', gst: '0.00', total: '0.00' };\ntry {\n    if (typeof quoteData.TotalsJSON === 'string') {\n        totals = JSON.parse(quoteData.TotalsJSON);\n    } else if (quoteData.TotalsJSON) {\n        totals = quoteData.TotalsJSON;\n    }\n} catch(e) {\n    console.log('Error parsing totals:', e);\n}\n\n// ✅ NEW: Get delivery cost from the DeliveryCost column\nconst deliveryCost = parseFloat(quoteData.DeliveryCost) || 0;\n\n// ✅ FIXED: Calculate timber cost from subtotal + gst (don't use total field which may be inconsistent)\nconst subtotal = parseFloat(totals.subtotal) || 0;\nconst gst = parseFloat(totals.gst) || 0;\nconst timberTotal = subtotal + gst; // This is the timber-only amount including GST\nconst grandTotal = timberTotal + deliveryCost; // True total including delivery\n\n// Format today's date\nconst today = new Date().toLocaleDateString('en-AU', {\n    day: 'numeric',\n    month: 'long',\n    year: 'numeric'\n});\n\n// ✅ NEW: Build line items based on whether there's a delivery cost\nlet lineItemsHTML = '';\nif (deliveryCost > 0) {\n    // Two line items: Timber + Delivery\n    lineItemsHTML = `\n            <tr>\n                <td>${description}</td>\n                <td>1</td>\n                <td>$${timberTotal.toFixed(2)}</td>\n                <td>inc GST</td>\n                <td>$${timberTotal.toFixed(2)}</td>\n            </tr>\n            <tr>\n                <td>Delivery</td>\n                <td>1</td>\n                <td>$${deliveryCost.toFixed(2)}</td>\n                <td>inc GST</td>\n                <td>$${deliveryCost.toFixed(2)}</td>\n            </tr>`;\n} else {\n    // Single line item: just timber\n    lineItemsHTML = `\n            <tr>\n                <td>${description}</td>\n                <td>1</td>\n                <td>$${grandTotal.toFixed(2)}</td>\n                <td>inc GST</td>\n                <td>$${grandTotal.toFixed(2)}</td>\n            </tr>`;\n}\n\n// ✅ NEW: Build totals section with breakdown if delivery exists\nlet totalsBreakdownHTML = '';\nif (deliveryCost > 0) {\n    totalsBreakdownHTML = `\n            <tr>\n                <td>Timber Supply:</td>\n                <td>$${timberTotal.toFixed(2)}</td>\n            </tr>\n            <tr>\n                <td>Delivery:</td>\n                <td>$${deliveryCost.toFixed(2)}</td>\n            </tr>\n            <tr>\n                <td>GST-included items:</td>\n                <td>$${grandTotal.toFixed(2)}</td>\n            </tr>`;\n} else {\n    totalsBreakdownHTML = `\n            <tr>\n                <td>Subtotal:</td>\n                <td>$${grandTotal.toFixed(2)}</td>\n            </tr>\n            <tr>\n                <td>GST-included items:</td>\n                <td>$${grandTotal.toFixed(2)}</td>\n            </tr>`;\n}\n\n// Build Invoice HTML\nconst invoiceHTML = `\n<!DOCTYPE html>\n<html>\n<head>\n    <meta charset=\"UTF-8\">\n    <style>\n        * {\n            margin: 0;\n            padding: 0;\n            box-sizing: border-box;\n        }\n        \n        body {\n            font-family: Arial, Helvetica, sans-serif;\n            font-size: 14px;\n            color: #333;\n            padding: 40px;\n            max-width: 800px;\n            margin: 0 auto;\n        }\n        \n        .invoice-header {\n            display: flex;\n            justify-content: space-between;\n            align-items: flex-start;\n            padding-bottom: 25px;\n            border-bottom: 3px solid #c5aa7f;\n            margin-bottom: 30px;\n        }\n        \n        .company-section {\n            text-align: right;\n        }\n        \n        .company-name {\n            font-size: 24px;\n            font-weight: bold;\n            color: #055902;\n            margin-bottom: 8px;\n        }\n        \n        .company-details {\n            font-size: 12px;\n            color: #666;\n            line-height: 1.6;\n        }\n        \n        .invoice-title {\n            font-size: 36px;\n            color: #412e28;\n            font-weight: bold;\n            margin: 20px 0 30px 0;\n            text-align: right;\n        }\n        \n        .details-container {\n            display: flex;\n            justify-content: space-between;\n            margin-bottom: 35px;\n        }\n        \n        .bill-to, .invoice-info {\n            flex: 1;\n        }\n        \n        .invoice-info {\n            text-align: right;\n        }\n        \n        .section-title {\n            font-size: 11px;\n            text-transform: uppercase;\n            letter-spacing: 1px;\n            color: #055902;\n            font-weight: bold;\n            margin-bottom: 10px;\n        }\n        \n        .bill-to p, .invoice-info p {\n            margin: 4px 0;\n            font-size: 13px;\n        }\n        \n        .bill-to .name {\n            font-weight: bold;\n            font-size: 15px;\n        }\n        \n        .invoice-table {\n            width: 100%;\n            border-collapse: collapse;\n            margin: 30px 0;\n        }\n        \n        .invoice-table th {\n            background: #412e28;\n            color: white;\n            padding: 14px 15px;\n            text-align: left;\n            font-size: 11px;\n            text-transform: uppercase;\n            letter-spacing: 0.5px;\n        }\n        \n        .invoice-table th:nth-child(2) { text-align: center; }\n        .invoice-table th:nth-child(3) { text-align: right; }\n        .invoice-table th:nth-child(4) { text-align: center; }\n        .invoice-table th:nth-child(5) { text-align: right; }\n        \n        .invoice-table td {\n            padding: 14px 15px;\n            border-bottom: 1px solid #eee;\n            font-size: 13px;\n        }\n        \n        .invoice-table td:nth-child(2) { text-align: center; }\n        .invoice-table td:nth-child(3) { text-align: right; }\n        .invoice-table td:nth-child(4) { text-align: center; }\n        .invoice-table td:nth-child(5) { text-align: right; }\n        \n        .totals-container {\n            display: flex;\n            justify-content: flex-end;\n            margin: 20px 0;\n        }\n        \n        .totals-table {\n            width: 300px;\n            border-collapse: collapse;\n        }\n        \n        .totals-table td {\n            padding: 10px 15px;\n            font-size: 13px;\n        }\n        \n        .totals-table td:last-child {\n            text-align: right;\n        }\n        \n        .totals-table .total-row {\n            background: #c5aa7f;\n            font-weight: bold;\n            font-size: 16px;\n        }\n        \n        .totals-table .total-row td {\n            padding: 14px 15px;\n        }\n        \n        .notes-section {\n            background: #f8f9fa;\n            padding: 18px;\n            border-left: 4px solid #c5aa7f;\n            margin: 30px 0;\n        }\n        \n        .notes-section h4 {\n            font-size: 11px;\n            text-transform: uppercase;\n            letter-spacing: 1px;\n            color: #412e28;\n            margin-bottom: 8px;\n        }\n        \n        .notes-section p {\n            font-size: 13px;\n            line-height: 1.5;\n        }\n        \n        .bank-section {\n            text-align: center;\n            margin: 35px 0;\n            padding: 25px;\n            background: #f8f9fa;\n            border-radius: 8px;\n        }\n        \n        .bank-section h4 {\n            color: #412e28;\n            font-size: 14px;\n            margin-bottom: 12px;\n            text-transform: uppercase;\n            letter-spacing: 1px;\n        }\n        \n        .bank-section .bank-name {\n            font-weight: bold;\n            margin-bottom: 8px;\n        }\n        \n        .bank-section p {\n            font-size: 13px;\n            margin: 4px 0;\n        }\n        \n        .footer {\n            text-align: center;\n            margin-top: 40px;\n            padding-top: 20px;\n            border-top: 1px solid #ddd;\n            font-size: 12px;\n            color: #666;\n        }\n        \n        .footer p {\n            margin: 3px 0;\n        }\n    </style>\n</head>\n<body>\n    <div class=\"invoice-header\">\n        <div class=\"logo-section\"></div>\n        <div class=\"company-section\">\n            <div class=\"company-name\">${COMPANY.name}</div>\n            <div class=\"company-details\">\n                ${COMPANY.address}<br>\n                Phone: ${COMPANY.phone}<br>\n                Email: ${COMPANY.email}<br>\n                ABN: ${COMPANY.abn}\n            </div>\n        </div>\n    </div>\n    \n    <div class=\"invoice-title\">TAX INVOICE</div>\n    \n    <div class=\"details-container\">\n        <div class=\"bill-to\">\n            <div class=\"section-title\">Bill To:</div>\n            <p class=\"name\">${toTitleCase(quoteData.StudentName || 'Customer')}</p>\n            <p>${toTitleCase(quoteData.School || '')}</p>\n            <p>${quoteData.StudentEmail || ''}</p>\n            <p>${quoteData.Mobile || ''}</p>\n        </div>\n        <div class=\"invoice-info\">\n            <div class=\"section-title\">Invoice Details:</div>\n            <p><strong>Invoice #:</strong> ${invoiceNumber}</p>\n            <p><strong>Date:</strong> ${today}</p>\n            <p><strong>Quote Ref:</strong> ${quoteData.QuoteID || ''}</p>\n        </div>\n    </div>\n    \n    <table class=\"invoice-table\">\n        <thead>\n            <tr>\n                <th>Description</th>\n                <th>Qty</th>\n                <th>Unit Price</th>\n                <th>GST</th>\n                <th>Total</th>\n            </tr>\n        </thead>\n        <tbody>\n            ${lineItemsHTML}\n        </tbody>\n    </table>\n    \n    <div class=\"totals-container\">\n        <table class=\"totals-table\">\n            ${totalsBreakdownHTML}\n            <tr class=\"total-row\">\n                <td><strong>TOTAL AMOUNT DUE:</strong></td>\n                <td><strong>$${grandTotal.toFixed(2)}</strong></td>\n            </tr>\n        </table>\n    </div>\n    \n    ${notes ? `\n    <div class=\"notes-section\">\n        <h4>Notes/Terms:</h4>\n        <p>${notes}</p>\n    </div>\n    ` : ''}\n    \n    <div class=\"bank-section\">\n        <h4>Direct Deposit</h4>\n        <p class=\"bank-name\">${COMPANY.bank.name}</p>\n        <p>Account Name: ${COMPANY.bank.accountName}</p>\n        <p>BSB: ${COMPANY.bank.bsb}</p>\n        <p>A/C: ${COMPANY.bank.accountNumber}</p>\n    </div>\n    \n    <div class=\"footer\">\n        <p>Thank you for your business!</p>\n        <p>${COMPANY.name} | ${COMPANY.email} | ${COMPANY.phone}</p>\n    </div>\n</body>\n</html>\n`;\n\n// Return all the data needed by subsequent nodes\nreturn {\n    invoiceHTML: invoiceHTML,\n    invoiceNumber: invoiceNumber,\n    fileName: fileName,\n    action: action,\n    customerEmail: quoteData.StudentEmail,\n    customerName: customerName,\n    quoteId: quoteData.QuoteID,\n    description: description,\n    // For email subject - this is the actual value, not an expression\n    emailSubject: `Your Invoice ${invoiceNumber} from Trend Timbers`\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        416,
+        0
+      ],
+      "id": "1665cc7a-dd8d-4f56-9af1-a116bd3a995d",
+      "name": "Build Invoice HTML"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.pdfshift.io/v3/convert/pdf",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "source",
+              "value": "={{ $json.invoiceHTML }}"
+            },
+            {
+              "name": "landscape",
+              "value": "false"
+            },
+            {
+              "name": "use_print",
+              "value": "true"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        832,
+        0
+      ],
+      "id": "b0adc294-6483-4023-87d8-828d8641afc5",
+      "name": "Generate PDF",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "tCd3Xflod5I2u1tG",
+          "name": "Unnamed credential 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const previousData = $('Build Invoice HTML').first().json;\nconst pdfBinary = $input.first().binary;\n\n// Get the binary data\nconst binaryKey = Object.keys(pdfBinary)[0];\nconst binaryData = pdfBinary[binaryKey];\n\n// Update the filename in the binary object\nbinaryData.fileName = previousData.fileName;\n\nreturn {\n    json: {\n        action: previousData.action,\n        invoiceNumber: previousData.invoiceNumber,\n        fileName: previousData.fileName,\n        customerEmail: previousData.customerEmail,\n        customerName: previousData.customerName,\n        quoteId: previousData.quoteId,\n        emailSubject: previousData.emailSubject\n    },\n    binary: {\n        invoice: binaryData\n    }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1040,
+        0
+      ],
+      "id": "e024c982-4cb8-4ecc-93fa-dba6af1052ca",
+      "name": "Prepare PDF Binary"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "download",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "b85de776-7ea0-4e4b-841b-81f152e7f92d"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "84f85391-a35d-438f-968a-a59e83f6ed5c",
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "send",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.3,
+      "position": [
+        1248,
+        0
+      ],
+      "id": "7e97bc7c-dd21-49b1-91b0-83824c7c2869",
+      "name": "Download or Send?"
+    },
+    {
+      "parameters": {
+        "respondWith": "binary",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/pdf"
+              },
+              {
+                "name": "Content-Disposition",
+                "value": "=attachment; filename=\"{{ $json.fileName }}\""
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        1456,
+        -96
+      ],
+      "id": "240eb498-c80d-47c4-aae4-489d868ca17b",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.customerEmail }}",
+        "subject": "=Your Invoice {{ $json.invoiceNumber }} from Trend Timbers",
+        "message": "=<div style=\"font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;\">     <div style=\"background: linear-gradient(135deg, #055902 0%, #412e28 100%); color: white; padding: 30px; text-align: center;\">         <h1 style=\"margin: 0;\">TREND TIMBERS</h1>     </div>     <div style=\"padding: 30px; background: #f9f9f9;\">         <h2 style=\"color: #055902;\">Hi {{ $json.customerName }},</h2>         <p>Please find your invoice attached.</p>         <div style=\"background: #d4edda; border-left: 4px solid #055902; padding: 15px; margin: 20px 0;\">             <strong>Invoice Number:</strong> {{ $json.invoiceNumber }}<br>             <strong>Quote Reference:</strong> {{ $json.quoteId }}         </div>         <p>If you have any questions about your invoice, please don't hesitate to contact us.</p>         <p>Thank you for your business!</p>         <p style=\"margin-top: 30px;\">             Best regards,<br>             <strong>Trend Timbers Team</strong><br>             02 4577 5277<br>             info@trendtimbers.com.au         </p>     </div> </div>",
+        "options": {
+          "attachmentsUi": {
+            "attachmentsBinary": [
+              {
+                "property": "invoice"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1456,
+        96
+      ],
+      "id": "2fa0523a-3e4e-4f10-acde-b03d7e15f3a7",
+      "name": "Send a message",
+      "webhookId": "3aef373b-6843-462c-9f9f-524347cd0208",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "9BtGWsOE6QgzT80a",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {
+          "responseKey": "=attachment; filename=\"{{ $json.fileName }}\""
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        1664,
+        96
+      ],
+      "id": "a6e25953-87a6-4c63-9ba9-ed21a37a35df",
+      "name": "Respond to Webhook1"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1so-VLU9J8yCwIVoYcu1cV9hoQlAnCgHqRJmXBwkq1bA",
+          "mode": "list",
+          "cachedResultName": "Quote Approvals",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1so-VLU9J8yCwIVoYcu1cV9hoQlAnCgHqRJmXBwkq1bA/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1so-VLU9J8yCwIVoYcu1cV9hoQlAnCgHqRJmXBwkq1bA/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "QuoteID": "={{ $json.quoteId }}",
+            "Status": "COMPLETE"
+          },
+          "matchingColumns": [
+            "QuoteID"
+          ],
+          "schema": [
+            {
+              "id": "QuoteID",
+              "displayName": "QuoteID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Timestamp",
+              "displayName": "Timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "StudentName",
+              "displayName": "StudentName",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "StudentEmail",
+              "displayName": "StudentEmail",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "StudentMobile",
+              "displayName": "StudentMobile",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "School",
+              "displayName": "School",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Teacher",
+              "displayName": "Teacher",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "DeliveryOption",
+              "displayName": "DeliveryOption",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ComponentsJSON",
+              "displayName": "ComponentsJSON",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TotalsJSON",
+              "displayName": "TotalsJSON",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "EmailHTML",
+              "displayName": "EmailHTML",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PickingSlipHTML",
+              "displayName": "PickingSlipHTML",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "DeliveryCost",
+              "displayName": "DeliveryCost",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Notes",
+              "displayName": "Notes",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "OriginalFile",
+              "displayName": "OriginalFile",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "SentDate",
+              "displayName": "SentDate",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "approvalLink",
+              "displayName": "approvalLink",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "quoteId",
+              "displayName": "quoteId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "quoteNumber",
+              "displayName": "quoteNumber",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "studentInfo",
+              "displayName": "studentInfo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "components",
+              "displayName": "components",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "totals",
+              "displayName": "totals",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "deliveryOption",
+              "displayName": "deliveryOption",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "customerNotes",
+              "displayName": "customerNotes",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "originalFile",
+              "displayName": "originalFile",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "to",
+              "displayName": "to",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "subject",
+              "displayName": "subject",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "html",
+              "displayName": "html",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "pickingSlipHTML",
+              "displayName": "pickingSlipHTML",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "studentName",
+              "displayName": "studentName",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        656,
+        -176
+      ],
+      "id": "ce90c917-83c3-4f7f-8e52-ea92ed70704b",
+      "name": "Update row in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "CBU0H80s5UVbkRlf",
+          "name": "Google Sheets account 2"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Get Quote Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Quote Data": {
+      "main": [
+        [
+          {
+            "node": "Build Invoice HTML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Invoice HTML": {
+      "main": [
+        [
+          {
+            "node": "Generate PDF",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Update row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate PDF": {
+      "main": [
+        [
+          {
+            "node": "Prepare PDF Binary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare PDF Binary": {
+      "main": [
+        [
+          {
+            "node": "Download or Send?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download or Send?": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send a message": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update row in sheet": {
+      "main": [
+        []
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "pinData": {
+    "Webhook": [
+      {
+        "json": {
+          "headers": {
+            "host": "ttimbers.app.n8n.cloud",
+            "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36",
+            "content-length": "221",
+            "accept": "*/*",
+            "accept-encoding": "gzip, br",
+            "accept-language": "en-US,en;q=0.9",
+            "cdn-loop": "cloudflare; loops=1; subreqs=1",
+            "cf-connecting-ip": "202.172.96.187",
+            "cf-ew-via": "15",
+            "cf-ipcountry": "AU",
+            "cf-ray": "9a4f677e31f43d32-SYD",
+            "cf-visitor": "{\"scheme\":\"https\"}",
+            "cf-worker": "n8n.cloud",
+            "content-type": "application/json",
+            "origin": "https://trendtimbers.com.au",
+            "priority": "u=1, i",
+            "referer": "https://trendtimbers.com.au/",
+            "sec-ch-ua": "\"Chromium\";v=\"142\", \"Google Chrome\";v=\"142\", \"Not_A Brand\";v=\"99\"",
+            "sec-ch-ua-mobile": "?0",
+            "sec-ch-ua-platform": "\"Windows\"",
+            "sec-fetch-dest": "empty",
+            "sec-fetch-mode": "cors",
+            "sec-fetch-site": "cross-site",
+            "x-forwarded-for": "202.172.96.187, 108.162.249.33",
+            "x-forwarded-host": "ttimbers.app.n8n.cloud",
+            "x-forwarded-port": "443",
+            "x-forwarded-proto": "https",
+            "x-forwarded-server": "traefik-prod-users-gwc-84-57fcbd49bc-mxt98",
+            "x-is-trusted": "yes",
+            "x-real-ip": "202.172.96.187"
+          },
+          "params": {},
+          "query": {},
+          "body": {
+            "quoteId": "TT-0632",
+            "invoiceNumber": "INV-0632",
+            "description": "Kiln-dried timber to cutting list supplied",
+            "notes": "Ready for pickup",
+            "customerEmail": "m.southwell@live.com",
+            "customerName": "matt southwell",
+            "action": "send"
+          },
+          "webhookUrl": "https://ttimbers.app.n8n.cloud/webhook/generate-invoice",
+          "executionMode": "production"
+        }
+      }
+    ]
+  }
+}

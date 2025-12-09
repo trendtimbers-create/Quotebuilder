@@ -1,0 +1,153 @@
+{
+  "name": "08-Work-Order",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "work-order",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "4e1872be-6d79-49ab-831f-a81cdb72c893",
+      "name": "Webhook",
+      "webhookId": "a63fa275-8d78-482c-ac22-7dc67a238090"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1so-VLU9J8yCwIVoYcu1cV9hoQlAnCgHqRJmXBwkq1bA",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1so-VLU9J8yCwIVoYcu1cV9hoQlAnCgHqRJmXBwkq1bA/edit#gid=0"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        208,
+        0
+      ],
+      "id": "34a1d010-ce2f-4a83-8f16-4cb1ff437eef",
+      "name": "Get row(s) in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "CBU0H80s5UVbkRlf",
+          "name": "Google Sheets account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get the quote ID from the URL query parameter\nconst quoteId = $('Webhook').first().json.query.id;\n\nif (!quoteId) {\n  throw new Error('No quote ID provided. Add ?id=TT-0001 to the URL');\n}\n\n// Get all rows from Google Sheets (using the actual node name)\nconst allRows = $('Get row(s) in sheet').all();\n\n// Find the matching quote\nconst matchingQuote = allRows.find(row => row.json.QuoteID === quoteId);\n\nif (!matchingQuote) {\n  throw new Error(`Quote not found: ${quoteId}`);\n}\n\nreturn [matchingQuote];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        416,
+        0
+      ],
+      "id": "e91f6bb0-7f99-45e5-a084-f7074785b477",
+      "name": "Find Quote"
+    },
+    {
+      "parameters": {
+        "jsCode": "const quote = $json;\n\n// Parse JSON data\nlet components = [];\nlet totals = {};\ntry {\n  components = JSON.parse(quote.ComponentsJSON || '[]');\n  totals = JSON.parse(quote.TotalsJSON || '{}');\n} catch(e) {\n  components = [];\n  totals = {};\n}\n\n// Title case helper\nfunction toTitleCase(str) {\n  if (!str) return '';\n  return str.toLowerCase().replace(/\\b\\w/g, c => c.toUpperCase());\n}\n\n// Format date\nconst today = new Date();\nconst dateStr = today.toLocaleDateString('en-AU', { \n  day: 'numeric',\n  month: 'long', \n  year: 'numeric' \n});\n\n// Build cutting list rows\nlet cuttingListRows = '';\ncomponents.forEach((comp, index) => {\n  const letter = String.fromCharCode(65 + index);\n  cuttingListRows += `\n    <tr>\n      <td style=\"border: 1px solid #000; padding: 5px; font-weight: bold; text-align: center;\">${letter}</td>\n      <td style=\"border: 1px solid #000; padding: 5px;\">${comp.species || ''}</td>\n      <td style=\"border: 1px solid #000; padding: 5px; text-align: center;\">${comp.thickness || 0}</td>\n      <td style=\"border: 1px solid #000; padding: 5px; text-align: center;\">${comp.stockWidth || comp.width || 0}</td>\n      <td style=\"border: 1px solid #000; padding: 5px; text-align: center;\">${comp.length || 0}</td>\n      <td style=\"border: 1px solid #000; padding: 5px; text-align: center;\">${comp.quantity || 0}</td>\n      <td style=\"border: 1px solid #000; padding: 5px; text-align: center; font-weight: bold;\">${comp.totalStockPieces || comp.quantity || 0}</td>\n    </tr>`;\n});\n\n// Delivery info\nconst isDelivery = quote.DeliveryOption === 'delivery';\nconst collectionMethod = isDelivery ? 'DELIVERY' : 'PICKUP';\n\n// Notes - properly check if notes exist and have content\nconst notesText = quote.Notes ? quote.Notes.trim() : '';\n\n// Build simple printable HTML - ONE PAGE\nconst workOrderHTML = `<!DOCTYPE html>\n<html>\n<head>\n  <meta charset=\"UTF-8\">\n  <title>Work Order - ${quote.QuoteID}</title>\n  <style>\n    * { margin: 0; padding: 0; box-sizing: border-box; }\n    body { font-family: Arial, sans-serif; font-size: 11px; padding: 15px; max-width: 800px; margin: 0 auto; }\n    h1 { font-size: 18px; margin-bottom: 3px; }\n    h2 { font-size: 12px; margin: 10px 0 5px 0; border-bottom: 2px solid #000; padding-bottom: 2px; }\n    table { width: 100%; border-collapse: collapse; margin: 8px 0; }\n    th { background: #333; color: white; padding: 6px; text-align: left; font-size: 10px; }\n    .info-grid { display: flex; gap: 15px; margin: 8px 0; }\n    .info-box { flex: 1; background: #f5f5f5; padding: 8px; border-left: 3px solid #333; }\n    .info-box p { margin: 2px 0; }\n    .collection-box { text-align: center; padding: 10px; margin: 10px 0; border: 3px solid ${isDelivery ? '#ff9800' : '#4caf50'}; background: ${isDelivery ? '#fff3cd' : '#e8f5e9'}; }\n    .collection-box span { font-size: 18px; font-weight: bold; }\n    .totals { background: #333; color: white; padding: 10px; margin: 10px 0; }\n    .totals table { color: white; }\n    .totals td { padding: 3px 0; }\n    .totals .grand { font-size: 16px; font-weight: bold; border-top: 1px solid #666; padding-top: 8px; }\n    .notes { background: #e3f2fd; padding: 8px; margin: 8px 0; border-left: 3px solid #2196F3; }\n    .print-btn { background: #333; color: white; border: none; padding: 10px 20px; font-size: 14px; cursor: pointer; }\n    @media print {\n      .no-print { display: none !important; }\n      body { padding: 10px; }\n    }\n  </style>\n</head>\n<body>\n\n<div class=\"no-print\" style=\"text-align: center; margin-bottom: 15px;\">\n  <button class=\"print-btn\" onclick=\"window.print()\">PRINT WORK ORDER</button>\n</div>\n\n<div style=\"display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 3px solid #000; padding-bottom: 8px; margin-bottom: 10px;\">\n  <div>\n    <h1>WORK ORDER</h1>\n    <p>Trend Timbers</p>\n  </div>\n  <div style=\"text-align: right;\">\n    <div style=\"font-size: 22px; font-weight: bold;\">${quote.QuoteID}</div>\n    <div>${dateStr}</div>\n  </div>\n</div>\n\n<div class=\"info-grid\">\n  <div class=\"info-box\">\n    <strong>CUSTOMER</strong>\n    <p><strong>${toTitleCase(quote.StudentName)}</strong></p>\n    <p>Phone: ${quote.StudentMobile || 'N/A'}</p>\n    <p>Email: ${quote.StudentEmail}</p>\n  </div>\n  <div class=\"info-box\">\n    <strong>SCHOOL</strong>\n    <p><strong>${toTitleCase(quote.School)}</strong></p>\n    <p>Teacher: ${toTitleCase(quote.Teacher)}</p>\n  </div>\n</div>\n\n<div class=\"collection-box\">\n  <span>${collectionMethod}</span>\n  <p style=\"margin-top: 3px; font-size: 10px;\">${isDelivery ? 'Arrange delivery with customer' : 'Customer will collect from store'}</p>\n</div>\n\n${notesText.length > 0 ? `<div class=\"notes\"><strong>NOTES:</strong> ${notesText}</div>` : ''}\n\n<h2>CUTTING LIST</h2>\n<table>\n  <tr>\n    <th style=\"width: 25px;\">#</th>\n    <th>Species</th>\n    <th style=\"width: 45px;\">Thick</th>\n    <th style=\"width: 45px;\">Width</th>\n    <th style=\"width: 55px;\">Length</th>\n    <th style=\"width: 35px;\">Qty</th>\n    <th style=\"width: 40px;\">PCS</th>\n  </tr>\n  ${cuttingListRows}\n</table>\n\n<div class=\"totals\">\n  <table>\n    <tr><td>Subtotal:</td><td style=\"text-align: right;\">$${parseFloat(totals.subtotal || 0).toFixed(2)}</td></tr>\n    <tr><td>GST:</td><td style=\"text-align: right;\">$${parseFloat(totals.gst || 0).toFixed(2)}</td></tr>\n    ${parseFloat(quote.DeliveryCost || 0) > 0 ? `<tr><td>Delivery:</td><td style=\"text-align: right;\">$${parseFloat(quote.DeliveryCost).toFixed(2)}</td></tr>` : ''}\n    <tr class=\"grand\"><td>TOTAL:</td><td style=\"text-align: right;\">$${parseFloat(totals.total || 0).toFixed(2)}</td></tr>\n  </table>\n</div>\n\n</body>\n</html>`;\n\nreturn [{ json: { html: workOrderHTML } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        624,
+        0
+      ],
+      "id": "3a03dd09-4480-4c5b-a0df-794925e7ec4e",
+      "name": "Build Work Order HTML"
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.html }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "=text/html"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        832,
+        0
+      ],
+      "id": "789ec7d8-12fc-4f0e-8e15-bb997a6a8a9c",
+      "name": "Respond to Webhook"
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Get row(s) in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get row(s) in sheet": {
+      "main": [
+        [
+          {
+            "node": "Find Quote",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Quote": {
+      "main": [
+        [
+          {
+            "node": "Build Work Order HTML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Work Order HTML": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "pinData": {}
+}

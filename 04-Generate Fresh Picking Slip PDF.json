@@ -1,0 +1,350 @@
+{
+  "name": "04-Generate Fresh Picking Slip PDF",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "generate-picking-slip",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "526dc5cc-fa6e-4679-aa5f-3b611b31d97d",
+      "name": "Webhook",
+      "webhookId": "86742aa2-9533-4ce3-af47-4b8fa1ee1a29"
+    },
+    {
+      "parameters": {
+        "jsCode": "const quoteId = $('Webhook').item.json.query.id;\nreturn [{ json: { quoteId } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        208,
+        0
+      ],
+      "id": "8bf3e66b-b80b-4d61-8ba2-c9d3e3a6d170",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1so-VLU9J8yCwIVoYcu1cV9hoQlAnCgHqRJmXBwkq1bA",
+          "mode": "list",
+          "cachedResultName": "Quote Approvals",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1so-VLU9J8yCwIVoYcu1cV9hoQlAnCgHqRJmXBwkq1bA/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1so-VLU9J8yCwIVoYcu1cV9hoQlAnCgHqRJmXBwkq1bA/edit#gid=0"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "QuoteID",
+              "lookupValue": "={{ $json.quoteId }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        416,
+        0
+      ],
+      "id": "6f7b578e-4465-4268-80ac-d46cb056c7cd",
+      "name": "Get row(s) in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "CBU0H80s5UVbkRlf",
+          "name": "Google Sheets account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const quoteData = $input.item.json;\n\n// Parse components\nlet components = [];\ntry {\n  components = JSON.parse(quoteData.ComponentsJSON || '[]');\n} catch(e) {\n  components = [];\n}\n\n// Parse totals\nlet totals = {};\ntry {\n  totals = JSON.parse(quoteData.TotalsJSON || '{}');\n} catch(e) {\n  totals = { subtotal: '0.00', gst: '0.00', total: '0.00' };\n}\n\n// Build component table\nlet tableRows = '';\ncomponents.forEach((comp, index) => {\n  const letter = String.fromCharCode(65 + index);\n  tableRows += `\n    <tr>\n      <td style=\"border: 1px solid #000; padding: 8px;\"><strong>${letter}</strong></td>\n      <td style=\"border: 1px solid #000; padding: 8px;\">${comp.species || ''}</td>\n      <td style=\"border: 1px solid #000; padding: 8px;\">${comp.thickness || 0}mm</td>\n      <td style=\"border: 1px solid #000; padding: 8px;\">${comp.stockWidth || 0}mm</td>\n      <td style=\"border: 1px solid #000; padding: 8px;\">${comp.length || 0}mm</td>\n      <td style=\"border: 1px solid #000; padding: 8px; text-align: center;\"><strong>${comp.totalStockPieces || 0}</strong></td>\n    </tr>\n  `;\n});\n\nconst deliveryCost = parseFloat(quoteData.DeliveryCost || 0);\nconst finalTotal = parseFloat(totals.total || 0) + deliveryCost;\n\nconst pickingSlipHTML = `<!DOCTYPE html>\n<html>\n<head>\n  <meta charset=\"UTF-8\">\n  <style>\n    body { font-family: Arial, sans-serif; padding: 20px; }\n    .header { text-align: center; margin-bottom: 30px; border-bottom: 3px solid #055902; padding-bottom: 20px; }\n    .header h1 { color: #055902; margin: 0; }\n    .info-section { margin: 20px 0; }\n    .info-row { display: flex; justify-content: space-between; margin: 8px 0; }\n    table { width: 100%; border-collapse: collapse; margin: 20px 0; }\n    th { background: #055902; color: white; padding: 10px; border: 1px solid #000; }\n    td { border: 1px solid #000; padding: 8px; }\n    .totals { margin-top: 30px; text-align: right; font-size: 18px; }\n    .totals div { margin: 8px 0; }\n    .footer { margin-top: 50px; text-align: center; font-size: 12px; color: #666; }\n  </style>\n</head>\n<body>\n  <div class=\"header\">\n    <h1>TREND TIMBERS</h1>\n    <h2>Picking Slip</h2>\n  </div>\n  \n  <div class=\"info-section\">\n    <div class=\"info-row\"><strong>Quote ID:</strong> ${quoteData.QuoteID}</div>\n    <div class=\"info-row\"><strong>Date:</strong> ${quoteData.Timestamp}</div>\n    <div class=\"info-row\"><strong>Student:</strong> ${quoteData.StudentName}</div>\n    <div class=\"info-row\"><strong>School:</strong> ${quoteData.School}</div>\n    <div class=\"info-row\"><strong>Teacher:</strong> ${quoteData.Teacher}</div>\n    <div class=\"info-row\"><strong>Delivery:</strong> ${quoteData.DeliveryOption === 'pickup' ? 'PICKUP' : 'DELIVERY'}</div>\n  </div>\n  \n  <table>\n    <thead>\n      <tr>\n        <th>#</th>\n        <th>Species</th>\n        <th>Thickness</th>\n        <th>Width</th>\n        <th>Length</th>\n        <th>Total Pieces</th>\n      </tr>\n    </thead>\n    <tbody>\n      ${tableRows}\n    </tbody>\n  </table>\n  \n  <div class=\"totals\">\n    <div><strong>Subtotal:</strong> $${totals.subtotal}</div>\n    <div><strong>GST:</strong> $${totals.gst}</div>\n    ${deliveryCost > 0 ? `<div><strong>Delivery:</strong> $${deliveryCost.toFixed(2)}</div>` : ''}\n    <div style=\"border-top: 2px solid #000; padding-top: 10px; margin-top: 10px;\">\n      <strong>TOTAL:</strong> $${finalTotal.toFixed(2)}\n    </div>\n  </div>\n  \n  ${quoteData.Notes ? `<div style=\"margin-top: 30px; padding: 15px; background: #f9f9f9; border-left: 4px solid #055902;\"><strong>Notes:</strong> ${quoteData.Notes}</div>` : ''}\n  \n  <div class=\"footer\">\n    <p>Trend Timbers | 15 Railway Rd North, Mulgrave NSW 2756 | (02) 4577 5277</p>\n  </div>\n</body>\n</html>`;\n\nreturn [{\n  json: {\n    html: pickingSlipHTML,\n    quoteId: quoteData.QuoteID,\n    studentName: quoteData.StudentName\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        624,
+        0
+      ],
+      "id": "ab0a2fb2-ecc4-4c7b-a85a-ec32714e0362",
+      "name": "Build Picking Slip HTML"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.pdfshift.io/v3/convert/pdf",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "source",
+              "value": "={{ $json.html }}"
+            },
+            {
+              "name": "landscape",
+              "value": "true"
+            },
+            {
+              "name": "format",
+              "value": "A4"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        832,
+        0
+      ],
+      "id": "ddad8c2e-1216-4f90-9b30-394e582a57c5",
+      "name": "HTTP Request",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "tCd3Xflod5I2u1tG",
+          "name": "Unnamed credential 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "binary",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Disposition",
+                "value": "=attachment; filename=\"{{ $('Build Picking Slip HTML').item.json.studentName }}-{{ $('Build Picking Slip HTML').item.json.quoteId }}.pdf\""
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        1040,
+        0
+      ],
+      "id": "877b6d62-6322-4c73-8e61-6798e92c6a4c",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "path": "...",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        32,
+        -272
+      ],
+      "id": "28926b22-7ecc-42dc-8aac-5505adb0867a",
+      "name": "Work Order Webhook",
+      "webhookId": "3ab3d7c2-aa49-4e31-a621-16245b0cddc1"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1so-VLU9J8yCwIVoYcu1cV9hoQlAnCgHqRJmXBwkq1bA",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1so-VLU9J8yCwIVoYcu1cV9hoQlAnCgHqRJmXBwkq1bA/edit#gid=0"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        240,
+        -272
+      ],
+      "id": "064205cd-70f9-4f18-bf5c-4bb78e197dce",
+      "name": "Get row(s) in sheet1",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "CBU0H80s5UVbkRlf",
+          "name": "Google Sheets account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const quoteId = $('Work Order Webhook').first().json.query.id;\n\nif (!quoteId) {\n  throw new Error('No quote ID provided');\n}\n\nconst allRows = $('Fetch Quote Data').all();\nconst matchingQuote = allRows.find(row => row.json.QuoteID === quoteId);\n\nif (!matchingQuote) {\n  throw new Error(`Quote not found: ${quoteId}`);\n}\n\nreturn [matchingQuote];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        -272
+      ],
+      "id": "8c0cf823-b527-45a0-8883-fe3e0b16ba20",
+      "name": "Find Quote"
+    },
+    {
+      "parameters": {
+        "jsCode": "const quote = $json;\n\n// Parse JSON data\nlet components = [];\nlet totals = {};\ntry {\n  components = JSON.parse(quote.ComponentsJSON || '[]');\n  totals = JSON.parse(quote.TotalsJSON || '{}');\n} catch(e) {\n  components = [];\n  totals = {};\n}\n\n// Title case helper\nfunction toTitleCase(str) {\n  if (!str) return '';\n  return str.toLowerCase().replace(/\\b\\w/g, c => c.toUpperCase());\n}\n\n// Format date\nconst today = new Date();\nconst dateStr = today.toLocaleDateString('en-AU', { \n  weekday: 'long', \n  year: 'numeric', \n  month: 'long', \n  day: 'numeric' \n});\n\n// Build cutting list rows\nlet cuttingListRows = '';\ncomponents.forEach((comp, index) => {\n  const letter = String.fromCharCode(65 + index);\n  cuttingListRows += `\n    <tr>\n      <td style=\"border: 1px solid #333; padding: 10px; font-weight: bold; text-align: center; font-size: 18px;\">${letter}</td>\n      <td style=\"border: 1px solid #333; padding: 10px; font-weight: bold;\">${comp.species || ''}</td>\n      <td style=\"border: 1px solid #333; padding: 10px; text-align: center;\">${comp.thickness || 0}mm</td>\n      <td style=\"border: 1px solid #333; padding: 10px; text-align: center;\">${comp.stockWidth || comp.width || 0}mm</td>\n      <td style=\"border: 1px solid #333; padding: 10px; text-align: center;\">${comp.length || 0}mm</td>\n      <td style=\"border: 1px solid #333; padding: 10px; text-align: center; font-size: 18px; font-weight: bold;\">${comp.quantity || 0}</td>\n      <td style=\"border: 1px solid #333; padding: 10px; text-align: center; font-size: 20px; font-weight: bold; background: #e8f5e9;\">${comp.totalStockPieces || comp.quantity || 0}</td>\n    </tr>\n  `;\n});\n\n// Delivery info\nconst isDelivery = quote.DeliveryOption === 'delivery';\nconst collectionMethod = isDelivery ? '🚚 DELIVERY' : '📦 PICKUP';\nconst collectionStyle = isDelivery \n  ? 'background: #fff3cd; color: #856404; border: 2px solid #ffc107;' \n  : 'background: #d4edda; color: #155724; border: 2px solid #28a745;';\n\n// Original file link\nconst originalFileLink = quote.OriginalFile \n  ? `<a href=\"${quote.OriginalFile}\" target=\"_blank\" style=\"color: #0066cc;\">View Original Cutting List</a>`\n  : 'Not available';\n\n// Build the Work Order HTML\nconst workOrderHTML = `<!DOCTYPE html>\n<html>\n<head>\n  <meta charset=\"UTF-8\">\n  <title>Work Order - ${quote.QuoteID}</title>\n  <style>\n    @media print {\n      body { margin: 0; padding: 15px; }\n      .no-print { display: none !important; }\n      .page-break { page-break-after: always; }\n    }\n    body {\n      font-family: Arial, sans-serif;\n      max-width: 800px;\n      margin: 0 auto;\n      padding: 20px;\n      background: #f5f5f5;\n    }\n    .work-order {\n      background: white;\n      padding: 30px;\n      border-radius: 10px;\n      box-shadow: 0 2px 10px rgba(0,0,0,0.1);\n    }\n    .header {\n      display: flex;\n      justify-content: space-between;\n      align-items: flex-start;\n      border-bottom: 3px solid #055902;\n      padding-bottom: 20px;\n      margin-bottom: 20px;\n    }\n    .logo-section h1 {\n      color: #055902;\n      margin: 0;\n      font-size: 28px;\n    }\n    .logo-section p {\n      color: #666;\n      margin: 5px 0 0 0;\n    }\n    .quote-number {\n      text-align: right;\n    }\n    .quote-number .number {\n      font-size: 36px;\n      font-weight: bold;\n      color: #055902;\n      letter-spacing: 2px;\n    }\n    .quote-number .date {\n      color: #666;\n      font-size: 14px;\n    }\n    .section {\n      margin: 20px 0;\n      padding: 15px;\n      border-radius: 8px;\n    }\n    .section h2 {\n      margin: 0 0 15px 0;\n      color: #333;\n      font-size: 18px;\n      border-bottom: 1px solid #ddd;\n      padding-bottom: 8px;\n    }\n    .customer-info {\n      background: #f8f9fa;\n      display: grid;\n      grid-template-columns: 1fr 1fr;\n      gap: 10px;\n    }\n    .customer-info p {\n      margin: 5px 0;\n    }\n    .customer-info strong {\n      color: #055902;\n    }\n    .collection-badge {\n      display: inline-block;\n      padding: 15px 25px;\n      border-radius: 8px;\n      font-size: 24px;\n      font-weight: bold;\n      ${collectionStyle}\n    }\n    .notes-section {\n      background: #e3f2fd;\n      border-left: 4px solid #2196F3;\n    }\n    .cutting-table {\n      width: 100%;\n      border-collapse: collapse;\n      margin-top: 10px;\n    }\n    .cutting-table th {\n      background: #055902;\n      color: white;\n      padding: 12px;\n      text-align: center;\n      font-size: 14px;\n    }\n    .totals-box {\n      background: #055902;\n      color: white;\n      padding: 20px;\n      border-radius: 8px;\n      margin-top: 20px;\n    }\n    .totals-box .total-line {\n      display: flex;\n      justify-content: space-between;\n      padding: 8px 0;\n      font-size: 18px;\n    }\n    .totals-box .grand-total {\n      border-top: 2px solid rgba(255,255,255,0.3);\n      margin-top: 10px;\n      padding-top: 15px;\n      font-size: 28px;\n      font-weight: bold;\n    }\n    .print-btn {\n      background: #055902;\n      color: white;\n      border: none;\n      padding: 15px 30px;\n      font-size: 18px;\n      border-radius: 8px;\n      cursor: pointer;\n      margin: 20px 0;\n    }\n    .print-btn:hover {\n      background: #044701;\n    }\n    .file-link {\n      background: #fff3cd;\n      padding: 15px;\n      border-radius: 8px;\n      margin-top: 15px;\n    }\n    .checkbox-line {\n      display: flex;\n      align-items: center;\n      gap: 10px;\n      padding: 10px 0;\n      border-bottom: 1px dashed #ccc;\n    }\n    .checkbox-line input[type=\"checkbox\"] {\n      width: 24px;\n      height: 24px;\n    }\n  </style>\n</head>\n<body>\n  <div class=\"no-print\" style=\"text-align: center;\">\n    <button class=\"print-btn\" onclick=\"window.print()\">🖨️ Print Work Order</button>\n  </div>\n  \n  <div class=\"work-order\">\n    <div class=\"header\">\n      <div class=\"logo-section\">\n        <h1>📋 WORK ORDER</h1>\n        <p>Trend Timbers - Workshop Copy</p>\n      </div>\n      <div class=\"quote-number\">\n        <div class=\"number\">${quote.QuoteID}</div>\n        <div class=\"date\">${dateStr}</div>\n      </div>\n    </div>\n    \n    <div class=\"section customer-info\">\n      <div>\n        <h2>👤 Customer Details</h2>\n        <p><strong>Name:</strong> ${toTitleCase(quote.StudentName)}</p>\n        <p><strong>Phone:</strong> ${quote.StudentMobile || 'Not provided'}</p>\n        <p><strong>Email:</strong> ${quote.StudentEmail}</p>\n      </div>\n      <div>\n        <h2>🏫 School Details</h2>\n        <p><strong>School:</strong> ${toTitleCase(quote.School)}</p>\n        <p><strong>Teacher:</strong> ${toTitleCase(quote.Teacher)}</p>\n      </div>\n    </div>\n    \n    <div class=\"section\" style=\"text-align: center; background: #f8f9fa;\">\n      <h2>Collection Method</h2>\n      <div class=\"collection-badge\">${collectionMethod}</div>\n      ${isDelivery ? '<p style=\"margin-top: 10px; color: #856404;\">⚠️ Arrange delivery with customer</p>' : '<p style=\"margin-top: 10px; color: #155724;\">Customer will collect from store</p>'}\n    </div>\n    \n    ${quote.Notes ? `\n    <div class=\"section notes-section\">\n      <h2>📝 Notes</h2>\n      <p style=\"font-size: 16px; white-space: pre-wrap;\">${quote.Notes}</p>\n    </div>\n    ` : ''}\n    \n    <div class=\"section\" style=\"padding: 0;\">\n      <h2 style=\"padding: 15px; margin: 0;\">🪵 Cutting List</h2>\n      <table class=\"cutting-table\">\n        <thead>\n          <tr>\n            <th style=\"width: 40px;\">#</th>\n            <th>Species</th>\n            <th>Thick</th>\n            <th>Width</th>\n            <th>Length</th>\n            <th>Qty</th>\n            <th style=\"background: #2e7d32;\">PIECES</th>\n          </tr>\n        </thead>\n        <tbody>\n          ${cuttingListRows}\n        </tbody>\n      </table>\n    </div>\n    \n    <div class=\"totals-box\">\n      <div class=\"total-line\">\n        <span>Subtotal:</span>\n        <span>$${parseFloat(totals.subtotal || 0).toFixed(2)}</span>\n      </div>\n      <div class=\"total-line\">\n        <span>GST (10%):</span>\n        <span>$${parseFloat(totals.gst || 0).toFixed(2)}</span>\n      </div>\n      ${quote.DeliveryCost && parseFloat(quote.DeliveryCost) > 0 ? `\n      <div class=\"total-line\">\n        <span>Delivery:</span>\n        <span>$${parseFloat(quote.DeliveryCost).toFixed(2)}</span>\n      </div>\n      ` : ''}\n      <div class=\"total-line grand-total\">\n        <span>TOTAL PAID:</span>\n        <span>$${parseFloat(totals.total || 0).toFixed(2)}</span>\n      </div>\n    </div>\n    \n    <div class=\"file-link\">\n      <strong>📎 Original File:</strong> ${originalFileLink}\n    </div>\n    \n    <div class=\"section\" style=\"background: #f8f9fa; margin-top: 20px;\">\n      <h2>✅ Workshop Checklist</h2>\n      <div class=\"checkbox-line\">\n        <input type=\"checkbox\"> <span>All timber selected and checked</span>\n      </div>\n      <div class=\"checkbox-line\">\n        <input type=\"checkbox\"> <span>Pieces cut to size</span>\n      </div>\n      <div class=\"checkbox-line\">\n        <input type=\"checkbox\"> <span>Quality checked</span>\n      </div>\n      <div class=\"checkbox-line\">\n        <input type=\"checkbox\"> <span>Bundled and labelled with ${quote.QuoteID}</span>\n      </div>\n      <div class=\"checkbox-line\">\n        <input type=\"checkbox\"> <span>Customer notified - ready for collection/delivery</span>\n      </div>\n    </div>\n    \n  </div>\n  \n  <div class=\"no-print\" style=\"text-align: center;\">\n    <button class=\"print-btn\" onclick=\"window.print()\">🖨️ Print Work Order</button>\n  </div>\n</body>\n</html>`;\n\nreturn [{\n  json: {\n    html: workOrderHTML\n  }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        656,
+        -272
+      ],
+      "id": "7a50212e-89cf-4c77-b9a0-022c1529fe45",
+      "name": "Build Work Order HTML"
+    },
+    {
+      "parameters": {
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {}
+            ]
+          },
+          "responseKey": ""
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        864,
+        -272
+      ],
+      "id": "37c0356f-1e29-4882-ba84-14681bc85ec7",
+      "name": "Respond to Webhook1"
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Get row(s) in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get row(s) in sheet": {
+      "main": [
+        [
+          {
+            "node": "Build Picking Slip HTML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Picking Slip HTML": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Work Order Webhook": {
+      "main": [
+        [
+          {
+            "node": "Get row(s) in sheet1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get row(s) in sheet1": {
+      "main": [
+        [
+          {
+            "node": "Find Quote",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Quote": {
+      "main": [
+        [
+          {
+            "node": "Build Work Order HTML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Work Order HTML": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "pinData": {}
+}

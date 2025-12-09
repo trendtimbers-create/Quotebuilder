@@ -1,0 +1,1065 @@
+{
+  "name": "02-Approval Handler",
+  "nodes": [
+    {
+      "parameters": {
+        "multipleMethods": true,
+        "path": "approve-quote",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "75fc77d2-df71-44f3-81ad-f335399ecf05",
+      "name": "Webhook",
+      "webhookId": "720e2a65-18ae-4138-924f-c01ad1bad206"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "9379f477-8188-4d46-984a-3fc0da4406da",
+              "leftValue": "={{ $json.requestType }}",
+              "rightValue": "GET",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        448,
+        0
+      ],
+      "id": "174513ec-39f6-49a4-ad88-3f53c3b96ead",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1so-VLU9J8yCwIVoYcu1cV9hoQlAnCgHqRJmXBwkq1bA",
+          "mode": "list",
+          "cachedResultName": "Quote Approvals",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1so-VLU9J8yCwIVoYcu1cV9hoQlAnCgHqRJmXBwkq1bA/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1so-VLU9J8yCwIVoYcu1cV9hoQlAnCgHqRJmXBwkq1bA/edit#gid=0"
+        },
+        "options": {
+          "dataLocationOnSheet": {
+            "values": {
+              "rangeDefinition": "specifyRangeA1",
+              "range": "A1:P5000"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        672,
+        -96
+      ],
+      "id": "f9ecb212-7b84-4af9-8ebd-882e4fa1f1fa",
+      "name": "Fetch Quote Data",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "CBU0H80s5UVbkRlf",
+          "name": "Google Sheets account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// =====================================================\n// TREND TIMBERS - BUILD APPROVAL FORM v3\n// =====================================================\n// ✅ NEW: Delete buttons for each component row\n// ✅ NEW: Rows can be removed before approving\n// ✅ Live POS footer with real-time calculations\n// =====================================================\n\nconst quoteData = $json;\n\nif (!quoteData || !quoteData.QuoteID) {\n  return [{\n    json: {\n      html: '<html><body><h1>Error: Quote not found</h1></body></html>'\n    }\n  }];\n}\n\n// Parse JSON data\nlet totals = {};\nlet components = [];\ntry {\n  totals = JSON.parse(quoteData.TotalsJSON || '{}');\n  components = JSON.parse(quoteData.ComponentsJSON || '[]');\n} catch(e) {\n  totals = { subtotal: '0.00', gst: '0.00', total: '0.00' };\n  components = [];\n}\n\n// Get base values for the footer\nconst baseSubtotal = parseFloat(totals.subtotal) || 0;\nconst baseGst = parseFloat(totals.gst) || 0;\n\n// Determine if this is a delivery or pickup order\nconst isDelivery = quoteData.DeliveryOption === 'delivery';\nconst isPickup = !isDelivery;\n\n// Build EDITABLE components table with DELETE buttons\nlet componentsTable = '';\ncomponents.forEach((comp, index) => {\n  const letter = String.fromCharCode(65 + index);\n  componentsTable += `\n    <tr id=\"row_${index}\" class=\"component-row\" data-index=\"${index}\">\n      <td style=\"padding: 8px; border: 1px solid #ddd; background: #f9f9f9; font-weight: bold; text-align: center; vertical-align: middle;\">\n        <span class=\"row-letter\">${letter}</span>\n      </td>\n      <td style=\"padding: 8px; border: 1px solid #ddd;\">\n        <input type=\"text\" name=\"species_${index}\" value=\"${comp.species || ''}\" \n               class=\"edit-input\" style=\"width: 100%;\">\n      </td>\n      <td style=\"padding: 8px; border: 1px solid #ddd;\">\n        <input type=\"number\" name=\"thickness_${index}\" value=\"${comp.thickness || 0}\" \n               class=\"edit-input\" style=\"width: 60px;\">\n      </td>\n      <td style=\"padding: 8px; border: 1px solid #ddd;\">\n        <input type=\"number\" name=\"width_${index}\" value=\"${comp.width || 0}\" \n               class=\"edit-input\" style=\"width: 60px;\">\n      </td>\n      <td style=\"padding: 8px; border: 1px solid #ddd;\">\n        <input type=\"number\" name=\"length_${index}\" value=\"${comp.length || 0}\" \n               class=\"edit-input\" style=\"width: 70px;\">\n      </td>\n      <td style=\"padding: 8px; border: 1px solid #ddd;\">\n        <input type=\"number\" name=\"quantity_${index}\" value=\"${comp.quantity || 0}\" min=\"0\"\n               class=\"edit-input quantity-input\" data-index=\"${index}\" style=\"width: 50px;\">\n      </td>\n      <td style=\"padding: 8px; border: 1px solid #ddd;\">\n        <div style=\"display: flex; align-items: center;\">\n          <span style=\"margin-right: 4px;\">$</span>\n          <input type=\"number\" name=\"subtotal_${index}\" value=\"${comp.subtotal || '0'}\" step=\"0.01\" \n                 class=\"edit-input line-total-input\" data-index=\"${index}\" style=\"width: 80px;\">\n        </div>\n      </td>\n      <td style=\"padding: 8px; border: 1px solid #ddd; text-align: center;\">\n        <button type=\"button\" class=\"delete-btn\" data-index=\"${index}\" title=\"Remove this item\">\n          🗑️\n        </button>\n        <input type=\"hidden\" name=\"deleted_${index}\" id=\"deleted_${index}\" value=\"0\">\n      </td>\n    </tr>\n  `;\n});\n\n// Customer notes section (only show if notes exist)\nconst customerNotesSection = quoteData.Notes ? `\n    <div style=\"background: #e3f2fd; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #2196F3;\">\n      <h3 style=\"margin-top: 0; color: #1565c0;\">💬 Customer Notes</h3>\n      <p style=\"margin: 0; font-size: 16px; color: #333; white-space: pre-wrap;\">${quoteData.Notes}</p>\n    </div>\n` : '';\n\n// Delivery/Pickup specific section\nlet deliverySection = '';\nif (isDelivery) {\n  deliverySection = `\n    <div class=\"form-group\" style=\"background: #fff3cd; padding: 20px; border-radius: 8px; border: 2px solid #ff9800;\">\n      <label style=\"color: #e65100; font-size: 18px;\">🚚 DELIVERY COST (REQUIRED)</label>\n      <p style=\"color: #856404; font-size: 14px; margin: 5px 0 10px 0;\">This is a DELIVERY order - you must enter a delivery cost.</p>\n      <input type=\"number\" class=\"finput\" id=\"deliveryCost\" name=\"deliveryCost\" value=\"\" step=\"0.01\" min=\"0\" \n             placeholder=\"Enter delivery cost (e.g., 50.00)\" style=\"border: 2px solid #ff9800;\" required>\n      <p id=\"deliveryWarning\" style=\"color: #dc3545; font-weight: bold; display: none; margin-top: 10px;\">⚠️ Please enter a delivery cost before approving!</p>\n    </div>\n  `;\n} else {\n  deliverySection = `\n    <div class=\"form-group\" style=\"background: #e8f5e9; padding: 20px; border-radius: 8px; border: 2px solid #4caf50;\">\n      <label style=\"color: #2e7d32; font-size: 18px;\">📦 PICKUP ORDER - Additional Charges (Optional)</label>\n      <p style=\"color: #388e3c; font-size: 14px; margin: 5px 0 10px 0;\">Customer will collect from store. Only add charges here for special requests.</p>\n      <div style=\"display: flex; align-items: center; gap: 15px;\">\n        <label style=\"display: flex; align-items: center; cursor: pointer; font-weight: normal;\">\n          <input type=\"checkbox\" id=\"addExtraCharge\" style=\"width: 20px; height: 20px; margin-right: 8px;\">\n          Add additional charge\n        </label>\n        <input type=\"number\" class=\"finput\" id=\"deliveryCost\" name=\"deliveryCost\" value=\"0\" step=\"0.01\" min=\"0\" placeholder=\"0.00\" style=\"width: 150px; opacity: 0.5;\" disabled>\n      </div>\n      <p id=\"pickupChargeNote\" style=\"color: #666; font-size: 13px; margin-top: 10px; display: none;\">💡 This charge will be added to the total. Use for: rush fees, special handling, etc.</p>\n    </div>\n  `;\n}\n\n// Pass values to JavaScript\nconst isDeliveryStr = isDelivery ? 'true' : 'false';\nconst componentCount = components.length;\n\nconst formHTML = `<!DOCTYPE html>\n<html>\n<head>\n  <meta charset=\"UTF-8\">\n  <title>Approve Quote - ${quoteData.StudentName}</title>\n  <style>\n    * { box-sizing: border-box; }\n    body { \n      font-family: Arial, sans-serif; \n      max-width: 1000px; \n      margin: 0 auto; \n      padding: 20px; \n      padding-bottom: 120px;\n      background: #f5f5f5; \n    }\n    .container { background: white; border-radius: 10px; padding: 30px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }\n    .header { background: linear-gradient(135deg, #055902, #412e28); color: white; padding: 20px; border-radius: 8px; margin-bottom: 30px; }\n    .header h1 { margin: 0; }\n    .quote-info { background: #f9f9f9; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #055902; }\n    .delivery-badge { display: inline-block; padding: 8px 16px; border-radius: 20px; font-weight: bold; font-size: 16px; }\n    .delivery-badge.pickup { background: #d4edda; color: #155724; }\n    .delivery-badge.delivery { background: #fff3cd; color: #856404; }\n    table { width: 100%; border-collapse: collapse; margin: 20px 0; }\n    th { background: #055902; color: white; padding: 12px 8px; text-align: left; font-size: 12px; }\n    td { padding: 8px; border: 1px solid #ddd; }\n    .edit-input { padding: 6px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; }\n    .edit-input:focus { border-color: #055902; outline: none; box-shadow: 0 0 3px rgba(5,89,2,0.3); }\n    .form-group { margin: 25px 0; }\n    label { display: block; font-weight: bold; margin-bottom: 8px; color: #055902; font-size: 16px; }\n    .finput { width: 100%; padding: 12px; font-size: 16px; border: 2px solid #ddd; border-radius: 5px; }\n    .finput:focus { border-color: #055902; outline: none; }\n    .button-group { display: flex; gap: 15px; margin-top: 30px; }\n    .btn-approve { background: #28a745; color: white; padding: 18px 40px; font-size: 20px; border: none; border-radius: 8px; cursor: pointer; flex: 1; font-weight: bold; }\n    .btn-approve:hover { background: #218838; }\n    .btn-followup { background: #ff9800; color: white; padding: 18px 40px; font-size: 20px; border: none; border-radius: 8px; cursor: pointer; flex: 1; font-weight: bold; }\n    .btn-followup:hover { background: #e68900; }\n    .edit-notice { background: #d1ecf1; border-left: 4px solid #0c5460; padding: 15px; margin: 20px 0; border-radius: 5px; }\n    .override-section { background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 20px 0; border: 1px solid #ddd; }\n    \n    /* Delete button styling */\n    .delete-btn {\n      background: #fee; \n      border: 1px solid #fcc; \n      border-radius: 5px; \n      padding: 6px 10px; \n      cursor: pointer; \n      font-size: 16px;\n      transition: all 0.2s;\n    }\n    .delete-btn:hover { background: #fcc; border-color: #f99; }\n    \n    /* Deleted row styling */\n    .component-row.deleted {\n      background: #f5f5f5 !important;\n      opacity: 0.5;\n    }\n    .component-row.deleted .edit-input {\n      background: #eee;\n      text-decoration: line-through;\n    }\n    .component-row.deleted .delete-btn {\n      background: #d4edda;\n      border-color: #28a745;\n    }\n    .component-row.deleted .row-letter {\n      text-decoration: line-through;\n      color: #999;\n    }\n    \n    /* Undo button */\n    .undo-btn {\n      background: #d4edda;\n      border: 1px solid #28a745;\n      color: #155724;\n    }\n    .undo-btn:hover { background: #c3e6cb; }\n    \n    /* Confirmation modal */\n    .confirmation-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center; }\n    .modal-content { background: white; padding: 30px; border-radius: 10px; max-width: 500px; text-align: center; }\n    .modal-buttons { display: flex; gap: 15px; margin-top: 20px; justify-content: center; }\n    .modal-btn { padding: 12px 30px; border: none; border-radius: 5px; font-size: 16px; cursor: pointer; font-weight: bold; }\n    .modal-btn.confirm { background: #28a745; color: white; }\n    .modal-btn.cancel { background: #6c757d; color: white; }\n    \n    /* POS STICKY FOOTER */\n    .pos-footer {\n      position: fixed;\n      bottom: 0;\n      left: 0;\n      right: 0;\n      background: linear-gradient(135deg, #055902, #412e28);\n      color: white;\n      padding: 15px 20px;\n      display: flex;\n      justify-content: center;\n      align-items: center;\n      gap: 30px;\n      box-shadow: 0 -4px 20px rgba(0,0,0,0.3);\n      z-index: 999;\n    }\n    .pos-footer .pos-item { text-align: center; }\n    .pos-footer .pos-label { font-size: 11px; text-transform: uppercase; opacity: 0.8; margin-bottom: 4px; }\n    .pos-footer .pos-value { font-size: 22px; font-weight: bold; }\n    .pos-footer .pos-divider { width: 1px; height: 50px; background: rgba(255,255,255,0.3); }\n    .pos-footer .pos-delivery { color: #ffd700; }\n    .pos-footer .pos-total { background: rgba(255,255,255,0.15); padding: 10px 25px; border-radius: 8px; }\n    .pos-footer .pos-total .pos-value { font-size: 28px; color: #ffd700; }\n    .pos-footer .pos-items { font-size: 14px; }\n    .pos-footer .pos-items .removed { color: #ff6b6b; }\n  </style>\n</head>\n<body>\n  <div class=\"container\">\n    <div class=\"header\">\n      <h1>Review & Edit Quote</h1>\n      <p>Quote ID: ${quoteData.QuoteID}</p>\n    </div>\n    \n    <div class=\"quote-info\">\n      <h2 style=\"margin-top: 0; color: #055902;\">Student Information</h2>\n      <p><strong>Name:</strong> ${quoteData.StudentName}</p>\n      <p><strong>Email:</strong> ${quoteData.StudentEmail}</p>\n      <p><strong>Mobile:</strong> ${quoteData.StudentMobile}</p>\n      <p><strong>School:</strong> ${quoteData.School}</p>\n      <p><strong>Teacher:</strong> ${quoteData.Teacher}</p>\n      <p><strong>Collection Method:</strong> \n        <span class=\"delivery-badge ${isDelivery ? 'delivery' : 'pickup'}\">\n          ${isDelivery ? '🚚 DELIVERY REQUIRED' : '📦 PICKUP FROM STORE'}\n        </span>\n      </p>\n    </div>\n    \n    ${customerNotesSection}\n    \n    <div class=\"edit-notice\">\n      <strong>📝 Edit Mode:</strong> You can edit values, change prices, or <strong>remove items</strong> using the 🗑️ button. The footer updates live!\n    </div>\n    \n    <h2>Components (Editable)</h2>\n    <table>\n      <thead>\n        <tr>\n          <th style=\"width: 40px;\">#</th>\n          <th>Species</th>\n          <th style=\"width: 70px;\">Thick</th>\n          <th style=\"width: 70px;\">Width</th>\n          <th style=\"width: 80px;\">Length</th>\n          <th style=\"width: 60px;\">Qty</th>\n          <th style=\"width: 100px;\">Line Total</th>\n          <th style=\"width: 50px;\">Remove</th>\n        </tr>\n      </thead>\n      <tbody id=\"componentsBody\">\n        ${componentsTable}\n      </tbody>\n    </table>\n    \n    <form method=\"POST\" action=\"\" id=\"quoteForm\">\n      <input type=\"hidden\" name=\"quoteId\" value=\"${quoteData.QuoteID}\">\n      <input type=\"hidden\" name=\"componentCount\" value=\"${componentCount}\">\n      <input type=\"hidden\" name=\"action\" id=\"formAction\" value=\"\">\n      <input type=\"hidden\" name=\"isDeliveryOrder\" value=\"${isDelivery}\">\n      \n      <div class=\"override-section\">\n        <label style=\"display: flex; align-items: center; cursor: pointer; font-weight: normal; color: #333;\">\n          <input type=\"checkbox\" id=\"overrideCheckbox\" style=\"width: 18px; height: 18px; margin-right: 10px;\">\n          <span>Override calculated totals (use a custom amount instead)</span>\n        </label>\n        \n        <div id=\"overrideFields\" style=\"display: none; margin-top: 15px;\">\n          <div style=\"display: flex; gap: 15px;\">\n            <div style=\"flex: 1;\">\n              <label style=\"font-size: 14px; color: #666;\">Custom Subtotal:</label>\n              <input type=\"number\" id=\"overrideSubtotal\" name=\"overrideSubtotal\" step=\"0.01\" placeholder=\"${totals.subtotal}\" \n                     style=\"width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;\">\n            </div>\n            <div style=\"flex: 1;\">\n              <label style=\"font-size: 14px; color: #666;\">Custom GST:</label>\n              <input type=\"number\" id=\"overrideGst\" name=\"overrideGst\" step=\"0.01\" placeholder=\"${totals.gst}\" \n                     style=\"width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;\">\n            </div>\n          </div>\n        </div>\n      </div>\n      \n      ${deliverySection}\n      \n      <div class=\"form-group\">\n        <label>📝 Notes to Customer</label>\n        <textarea class=\"finput\" name=\"notes\" rows=\"4\" placeholder=\"For approval: special instructions or notes. For follow-up: explain what needs clarification...\"></textarea>\n      </div>\n      \n      <div class=\"form-group\">\n        <label>⏱️ Estimated Completion Time</label>\n        <input type=\"text\" class=\"finput\" name=\"completionTime\" value=\"3-5 business days\" placeholder=\"e.g., 3-5 business days\">\n      </div>\n      \n      <div class=\"button-group\">\n        <button type=\"button\" class=\"btn-followup\" id=\"followupBtn\">\n          📞 FOLLOW UP REQUIRED\n        </button>\n        <button type=\"button\" class=\"btn-approve\" id=\"approveBtn\">\n          ✅ APPROVE & SEND QUOTE\n        </button>\n      </div>\n    </form>\n  </div>\n  \n  <!-- POS STICKY FOOTER -->\n  <div class=\"pos-footer\">\n    <div class=\"pos-item pos-items\">\n      <div class=\"pos-label\">Items</div>\n      <div class=\"pos-value\">\n        <span id=\"footer-items\">${componentCount}</span>\n        <span id=\"footer-removed\" class=\"removed\" style=\"display: none;\"> (-<span id=\"footer-removed-count\">0</span>)</span>\n      </div>\n    </div>\n    <div class=\"pos-divider\"></div>\n    <div class=\"pos-item\">\n      <div class=\"pos-label\">Subtotal</div>\n      <div class=\"pos-value\" id=\"footer-subtotal\">$${baseSubtotal.toFixed(2)}</div>\n    </div>\n    <div class=\"pos-divider\"></div>\n    <div class=\"pos-item\">\n      <div class=\"pos-label\">GST (10%)</div>\n      <div class=\"pos-value\" id=\"footer-gst\">$${baseGst.toFixed(2)}</div>\n    </div>\n    <div class=\"pos-divider\"></div>\n    <div class=\"pos-item pos-delivery\">\n      <div class=\"pos-label\">Delivery</div>\n      <div class=\"pos-value\" id=\"footer-delivery\">$0.00</div>\n    </div>\n    <div class=\"pos-divider\"></div>\n    <div class=\"pos-item pos-total\">\n      <div class=\"pos-label\">Grand Total (inc GST)</div>\n      <div class=\"pos-value\" id=\"footer-total\">$${(baseSubtotal + baseGst).toFixed(2)}</div>\n    </div>\n  </div>\n  \n  <div id=\"confirmModal\" class=\"confirmation-modal\">\n    <div class=\"modal-content\">\n      <h2 style=\"color: #856404;\">⚠️ Confirm Action</h2>\n      <p id=\"modalMessage\"></p>\n      <div class=\"modal-buttons\">\n        <button class=\"modal-btn cancel\" id=\"modalCancel\">Cancel</button>\n        <button class=\"modal-btn confirm\" id=\"modalConfirm\">Yes, Continue</button>\n      </div>\n    </div>\n  </div>\n  \n  <script>\n    (function() {\n      // ===== CONFIGURATION =====\n      var isDeliveryOrder = ${isDeliveryStr};\n      var componentCount = ${componentCount};\n      var deletedRows = {};\n      \n      // ===== DOM ELEMENTS =====\n      var deliveryCostInput = document.getElementById('deliveryCost');\n      var addExtraChargeCheckbox = document.getElementById('addExtraCharge');\n      var pickupChargeNote = document.getElementById('pickupChargeNote');\n      var deliveryWarning = document.getElementById('deliveryWarning');\n      var confirmModal = document.getElementById('confirmModal');\n      var modalMessage = document.getElementById('modalMessage');\n      var approveBtn = document.getElementById('approveBtn');\n      var followupBtn = document.getElementById('followupBtn');\n      var modalCancel = document.getElementById('modalCancel');\n      var modalConfirm = document.getElementById('modalConfirm');\n      var formAction = document.getElementById('formAction');\n      var quoteForm = document.getElementById('quoteForm');\n      var overrideCheckbox = document.getElementById('overrideCheckbox');\n      var overrideFields = document.getElementById('overrideFields');\n      var overrideSubtotal = document.getElementById('overrideSubtotal');\n      var overrideGst = document.getElementById('overrideGst');\n      \n      // Footer elements\n      var footerItems = document.getElementById('footer-items');\n      var footerRemoved = document.getElementById('footer-removed');\n      var footerRemovedCount = document.getElementById('footer-removed-count');\n      var footerSubtotal = document.getElementById('footer-subtotal');\n      var footerGst = document.getElementById('footer-gst');\n      var footerDelivery = document.getElementById('footer-delivery');\n      var footerTotal = document.getElementById('footer-total');\n      \n      var pendingAction = null;\n      \n      // ===== DELETE ROW FUNCTIONALITY =====\n      var deleteButtons = document.querySelectorAll('.delete-btn');\n      deleteButtons.forEach(function(btn) {\n        btn.addEventListener('click', function() {\n          var index = this.getAttribute('data-index');\n          var row = document.getElementById('row_' + index);\n          var deletedField = document.getElementById('deleted_' + index);\n          \n          if (row.classList.contains('deleted')) {\n            // UNDO - restore the row\n            row.classList.remove('deleted');\n            deletedField.value = '0';\n            this.innerHTML = '🗑️';\n            this.title = 'Remove this item';\n            delete deletedRows[index];\n          } else {\n            // DELETE - mark row as deleted\n            row.classList.add('deleted');\n            deletedField.value = '1';\n            this.innerHTML = '↩️';\n            this.title = 'Undo removal';\n            deletedRows[index] = true;\n          }\n          \n          updateTotals();\n        });\n      });\n      \n      // ===== LIVE CALCULATION FUNCTION =====\n      function updateTotals() {\n        var subtotal, gst;\n        var activeItems = 0;\n        var removedItems = 0;\n        \n        // Count active/removed items\n        for (var i = 0; i < componentCount; i++) {\n          if (deletedRows[i]) {\n            removedItems++;\n          } else {\n            activeItems++;\n          }\n        }\n        \n        // Update items display\n        footerItems.textContent = activeItems;\n        if (removedItems > 0) {\n          footerRemoved.style.display = 'inline';\n          footerRemovedCount.textContent = removedItems;\n        } else {\n          footerRemoved.style.display = 'none';\n        }\n        \n        // Check if using override values\n        if (overrideCheckbox && overrideCheckbox.checked) {\n          subtotal = parseFloat(overrideSubtotal.value) || 0;\n          gst = parseFloat(overrideGst.value) || (subtotal * 0.1);\n        } else {\n          // Sum up all line totals (excluding deleted rows)\n          subtotal = 0;\n          var lineInputs = document.querySelectorAll('.line-total-input');\n          lineInputs.forEach(function(input) {\n            var idx = input.getAttribute('data-index');\n            if (!deletedRows[idx]) {\n              subtotal += parseFloat(input.value) || 0;\n            }\n          });\n          gst = subtotal * 0.1;\n        }\n        \n        // Get delivery cost\n        var delivery = 0;\n        if (deliveryCostInput && !deliveryCostInput.disabled) {\n          delivery = parseFloat(deliveryCostInput.value) || 0;\n        }\n        \n        // Calculate grand total\n        var grandTotal = subtotal + gst + delivery;\n        \n        // Update footer display\n        footerSubtotal.textContent = '$' + subtotal.toFixed(2);\n        footerGst.textContent = '$' + gst.toFixed(2);\n        footerDelivery.textContent = '$' + delivery.toFixed(2);\n        footerTotal.textContent = '$' + grandTotal.toFixed(2);\n        \n        // Highlight delivery if > 0\n        if (delivery > 0) {\n          footerDelivery.style.color = '#ffd700';\n        } else {\n          footerDelivery.style.color = 'inherit';\n        }\n      }\n      \n      // ===== EVENT LISTENERS =====\n      \n      // Line total inputs\n      var lineInputs = document.querySelectorAll('.line-total-input');\n      lineInputs.forEach(function(input) {\n        input.addEventListener('input', updateTotals);\n      });\n      \n      // Quantity inputs (also trigger recalc)\n      var quantityInputs = document.querySelectorAll('.quantity-input');\n      quantityInputs.forEach(function(input) {\n        input.addEventListener('input', updateTotals);\n      });\n      \n      // Delivery cost input\n      if (deliveryCostInput) {\n        deliveryCostInput.addEventListener('input', function() {\n          if (deliveryWarning) deliveryWarning.style.display = 'none';\n          if (isDeliveryOrder) {\n            this.style.borderColor = '#ff9800';\n          }\n          updateTotals();\n        });\n      }\n      \n      // Override checkbox\n      if (overrideCheckbox) {\n        overrideCheckbox.addEventListener('change', function() {\n          overrideFields.style.display = this.checked ? 'block' : 'none';\n          updateTotals();\n        });\n      }\n      \n      if (overrideSubtotal) overrideSubtotal.addEventListener('input', updateTotals);\n      if (overrideGst) overrideGst.addEventListener('input', updateTotals);\n      \n      // Pickup extra charge toggle\n      if (addExtraChargeCheckbox) {\n        addExtraChargeCheckbox.addEventListener('change', function() {\n          if (this.checked) {\n            deliveryCostInput.disabled = false;\n            deliveryCostInput.style.opacity = '1';\n            deliveryCostInput.focus();\n            if (pickupChargeNote) pickupChargeNote.style.display = 'block';\n          } else {\n            deliveryCostInput.disabled = true;\n            deliveryCostInput.style.opacity = '0.5';\n            deliveryCostInput.value = '0';\n            if (pickupChargeNote) pickupChargeNote.style.display = 'none';\n          }\n          updateTotals();\n        });\n      }\n      \n      // Follow up button\n      if (followupBtn) {\n        followupBtn.addEventListener('click', function() {\n          submitForm('followup');\n        });\n      }\n      \n      // Approve button\n      if (approveBtn) {\n        approveBtn.addEventListener('click', function() {\n          validateAndSubmit();\n        });\n      }\n      \n      // Modal buttons\n      if (modalCancel) {\n        modalCancel.addEventListener('click', function() {\n          confirmModal.style.display = 'none';\n          pendingAction = null;\n        });\n      }\n      \n      if (modalConfirm) {\n        modalConfirm.addEventListener('click', function() {\n          confirmModal.style.display = 'none';\n          if (pendingAction) {\n            submitForm(pendingAction);\n            pendingAction = null;\n          }\n        });\n      }\n      \n      function validateAndSubmit() {\n        var deliveryCost = parseFloat(deliveryCostInput.value) || 0;\n        var removedCount = Object.keys(deletedRows).length;\n        \n        // Check if all items were removed\n        if (removedCount >= componentCount) {\n          modalMessage.innerHTML = '<strong style=\"color: #dc3545;\">⚠️ Error:</strong> You cannot remove ALL items from the quote!';\n          document.getElementById('modalConfirm').style.display = 'none';\n          confirmModal.style.display = 'flex';\n          return;\n        }\n        \n        document.getElementById('modalConfirm').style.display = 'inline-block';\n        \n        if (isDeliveryOrder) {\n          // DELIVERY ORDER: Must have delivery cost\n          if (deliveryCost <= 0) {\n            if (deliveryWarning) deliveryWarning.style.display = 'block';\n            deliveryCostInput.focus();\n            deliveryCostInput.style.borderColor = '#dc3545';\n            return;\n          }\n        }\n        \n        // Check if items were removed - show confirmation\n        if (removedCount > 0) {\n          modalMessage.innerHTML = 'You have <strong>removed ' + removedCount + ' item(s)</strong> from this quote.<br><br>The customer will receive the updated quote with only the remaining items.<br><br><strong>Continue?</strong>';\n          pendingAction = 'approve';\n          confirmModal.style.display = 'flex';\n          return;\n        }\n        \n        // Check for extra charge on pickup\n        if (!isDeliveryOrder && deliveryCost > 0) {\n          modalMessage.innerHTML = 'You are adding <strong>$' + deliveryCost.toFixed(2) + '</strong> as an additional charge to a <strong>PICKUP</strong> order.<br><br>This charge will be added to the customer total.';\n          pendingAction = 'approve';\n          confirmModal.style.display = 'flex';\n          return;\n        }\n        \n        // All good, submit\n        submitForm('approve');\n      }\n      \n      function submitForm(action) {\n        formAction.value = action;\n        quoteForm.submit();\n      }\n      \n      // ===== INITIAL CALCULATION =====\n      updateTotals();\n      \n    })();\n  </script>\n</body>\n</html>`;\n\nreturn [{\n  json: {\n    html: formHTML\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        -96
+      ],
+      "id": "bd6dc445-ec51-45d7-9253-eb24c4250769",
+      "name": "Build Approval Form"
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "=={{ $json.html }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "text/html; charset=utf-8"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        1344,
+        -96
+      ],
+      "id": "f9090d63-b448-451a-a168-e8b585dc629e",
+      "name": "Show Form"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1so-VLU9J8yCwIVoYcu1cV9hoQlAnCgHqRJmXBwkq1bA",
+          "mode": "list",
+          "cachedResultName": "Quote Approvals",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1so-VLU9J8yCwIVoYcu1cV9hoQlAnCgHqRJmXBwkq1bA/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1so-VLU9J8yCwIVoYcu1cV9hoQlAnCgHqRJmXBwkq1bA/edit#gid=0"
+        },
+        "options": {
+          "dataLocationOnSheet": {
+            "values": {
+              "rangeDefinition": "specifyRangeA1",
+              "range": "A1:P5000"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        672,
+        96
+      ],
+      "id": "967e3a06-f548-4527-9045-fa3b1839a488",
+      "name": "Fetch Quote for Sending",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "CBU0H80s5UVbkRlf",
+          "name": "Google Sheets account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// =====================================================\n// TREND TIMBERS - PREPARE CUSTOMER EMAIL v4\n// =====================================================\n// ✅ Uses $json.deliveryCost directly\n// ✅ Generates EmailHTML with correct totals\n// ✅ Generates PickingSlipHTML with correct totals\n// ✅ Works with filtered components (deleted rows removed)\n// =====================================================\n\nconst quoteData = $json;\n\n// Get values directly from $json (from Process Edited Components)\nconst deliveryCost = parseFloat($json.deliveryCost) || 0;\nconst notesInput = $json.notes || '';\nconst completionTime = $json.completionTime || '3-5 business days';\n\n// Title case function\nfunction toTitleCase(str) {\n    if (!str) return '';\n    return str.toLowerCase().replace(/\\b\\w/g, char => char.toUpperCase());\n}\n\n// Quote number\nconst quoteNumber = quoteData.QuoteID;\n\n// Parse component data - THIS NOW CONTAINS ONLY ACTIVE COMPONENTS\nlet totals = {};\nlet components = [];\ntry {\n  totals = JSON.parse(quoteData.TotalsJSON);\n  components = JSON.parse(quoteData.ComponentsJSON);\n} catch(e) {\n  totals = { subtotal: '0.00', gst: '0.00', total: '0.00' };\n  components = [];\n}\n\n// Get the values from TotalsJSON\nconst subtotal = parseFloat(totals.subtotal) || 0;\nconst gst = parseFloat(totals.gst) || 0;\n\n// Calculate grand total (timber + GST + delivery)\nconst timberTotal = subtotal + gst;\nconst grandTotal = timberTotal + deliveryCost;\n\n// Create updated TotalsJSON to save\nconst updatedTotalsJSON = JSON.stringify({\n  subtotal: subtotal.toFixed(2),\n  gst: gst.toFixed(2),\n  total: grandTotal.toFixed(2)\n});\n\n// =====================================================\n// BUILD CUSTOMER EMAIL HTML\n// =====================================================\n\n// Build component rows for email (with re-lettered indices)\nlet emailTableRows = '';\ncomponents.forEach((comp, index) => {\n  const letter = String.fromCharCode(65 + index); // A, B, C... (re-numbered after deletions)\n  emailTableRows += `\n    <tr>\n      <td style=\"border: 1px solid #ddd; padding: 8px; font-family: Arial, sans-serif;\"><strong>${letter}</strong></td>\n      <td style=\"border: 1px solid #ddd; padding: 8px; font-family: Arial, sans-serif;\"><strong>${comp.species || ''}</strong></td>\n      <td style=\"border: 1px solid #ddd; padding: 8px; font-family: Arial, sans-serif;\">${comp.thickness || 0}mm</td>\n      <td style=\"border: 1px solid #ddd; padding: 8px; font-family: Arial, sans-serif;\">${comp.width || 0}mm → ${comp.stockWidth || 0}mm</td>\n      <td style=\"border: 1px solid #ddd; padding: 8px; font-family: Arial, sans-serif;\">${comp.length || 0}mm</td>\n      <td style=\"border: 1px solid #ddd; padding: 8px; text-align: center; font-family: Arial, sans-serif;\">${comp.quantity || 0}</td>\n      <td style=\"border: 1px solid #ddd; padding: 8px; text-align: center; font-family: Arial, sans-serif;\"><strong>${comp.totalStockPieces || 0}</strong></td>\n    </tr>\n    <tr>\n      <td colspan=\"7\" style=\"border: 1px solid #ddd; padding: 8px; background-color: #f9f9f9; font-size: 12px; color: #666; font-family: Arial, sans-serif;\">${comp.nestingNote || ''} • waste allowance</td>\n    </tr>`;\n});\n\n// Delivery row for email\nconst emailDeliveryRow = quoteData.DeliveryOption === 'pickup'\n  ? `<tr><td style=\"padding: 10px; border-top: 1px solid rgba(255,255,255,0.3); font-family: Arial, sans-serif; color: #ffffff;\"><strong>Pickup:</strong></td><td style=\"padding: 10px; text-align: right; border-top: 1px solid rgba(255,255,255,0.3); font-family: Arial, sans-serif; color: #ffffff;\"><strong>No charge</strong></td></tr>`\n  : `<tr><td style=\"padding: 10px; border-top: 1px solid rgba(255,255,255,0.3); font-family: Arial, sans-serif; color: #ffffff;\"><strong>Delivery:</strong></td><td style=\"padding: 10px; text-align: right; border-top: 1px solid rgba(255,255,255,0.3); font-family: Arial, sans-serif; color: #ffffff;\"><strong>$${deliveryCost.toFixed(2)}</strong></td></tr>`;\n\nconst customerEmailHTML = `<!DOCTYPE html>\n<html>\n<head>\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n</head>\n<body style=\"margin: 0; padding: 0; font-family: Arial, sans-serif;\">\n\n<table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"background-color: #c5aa7f;\">\n  <tr>\n    <td align=\"center\" style=\"padding: 20px;\">\n      <img src=\"https://trendtimbers.com.au/wp-content/uploads/2025/08/Trend-Timbers-Logo2.png\" alt=\"Trend Timbers\" style=\"height: 50px; max-width: 50px;\">\n      <h1 style=\"color: white; margin: 10px 0 0 0; font-size: 22px;\">Your Timber Quote</h1>\n      <div style=\"color: white; margin: 10px 0 0 0; font-size: 28px; font-weight: bold; letter-spacing: 2px;\">${quoteNumber}</div>\n    </td>\n  </tr>\n</table>\n\n<table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\">\n  <tr>\n    <td align=\"center\" style=\"padding: 20px;\">\n      <table width=\"600\" cellpadding=\"0\" cellspacing=\"0\" style=\"max-width: 600px;\">\n        \n        <tr>\n          <td style=\"background-color: #f0f8f0; padding: 15px; border-radius: 5px;\">\n            <h2 style=\"margin: 0 0 10px 0; font-size: 20px;\">Hi ${toTitleCase(quoteData.StudentName)},</h2>\n            <p style=\"margin: 0;\">Thank you for your quote request! Here's your detailed timber quote for your ${toTitleCase(quoteData.School)} project.</p>\n            <p style=\"margin: 10px 0 0 0; font-size: 14px; color: #666;\"><strong>Reference:</strong> ${quoteNumber} &nbsp;|&nbsp; Please have this quote number ready.</p>\n          </td>\n        </tr>\n        \n        <tr>\n          <td style=\"padding: 20px 0;\">\n            <h2 style=\"font-size: 20px; margin: 0 0 15px 0;\">Quote Details</h2>\n            \n            <table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"border-collapse: collapse;\">\n              <tr>\n                <th style=\"background-color: #055902; color: white; padding: 10px; border: 1px solid #ddd; font-family: Arial, sans-serif;\">#</th>\n                <th style=\"background-color: #055902; color: white; padding: 10px; border: 1px solid #ddd; font-family: Arial, sans-serif;\">Species</th>\n                <th style=\"background-color: #055902; color: white; padding: 10px; border: 1px solid #ddd; font-family: Arial, sans-serif;\">Thick</th>\n                <th style=\"background-color: #055902; color: white; padding: 10px; border: 1px solid #ddd; font-family: Arial, sans-serif;\">Width</th>\n                <th style=\"background-color: #055902; color: white; padding: 10px; border: 1px solid #ddd; font-family: Arial, sans-serif;\">Length</th>\n                <th style=\"background-color: #055902; color: white; padding: 10px; border: 1px solid #ddd; font-family: Arial, sans-serif;\">Qty</th>\n                <th style=\"background-color: #055902; color: white; padding: 10px; border: 1px solid #ddd; font-family: Arial, sans-serif;\">Total Pieces</th>\n              </tr>\n              ${emailTableRows}\n            </table>\n          </td>\n        </tr>\n        \n        <tr>\n          <td style=\"background-color: #055902; color: white; padding: 20px; border-radius: 5px;\">\n            <table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\">\n              <tr>\n                <td style=\"padding: 10px; font-family: Arial, sans-serif; color: #ffffff;\"><strong>Subtotal:</strong></td>\n                <td style=\"padding: 10px; text-align: right; font-family: Arial, sans-serif; color: #ffffff;\"><strong>$${subtotal.toFixed(2)}</strong></td>\n              </tr>\n              <tr>\n                <td style=\"padding: 10px; font-family: Arial, sans-serif; color: #ffffff;\"><strong>GST (10%):</strong></td>\n                <td style=\"padding: 10px; text-align: right; font-family: Arial, sans-serif; color: #ffffff;\"><strong>$${gst.toFixed(2)}</strong></td>\n              </tr>\n              ${emailDeliveryRow}\n              <tr>\n                <td style=\"padding: 15px 10px 10px 10px; border-top: 2px solid white; font-size: 20px; font-family: Arial, sans-serif; color: #ffffff;\"><strong>TOTAL:</strong></td>\n                <td style=\"padding: 15px 10px 10px 10px; text-align: right; border-top: 2px solid white; font-size: 20px; font-family: Arial, sans-serif; color: #ffffff;\"><strong>$${grandTotal.toFixed(2)}</strong></td>\n              </tr>\n            </table>\n          </td>\n        </tr>\n        \n        ${notesInput ? `<tr><td style=\"background-color: #e3f2fd; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #2196F3;\"><strong>Special Notes:</strong><br>${notesInput}</td></tr>` : ''}\n        \n        <tr>\n          <td style=\"background-color: #fff3cd; padding: 15px; border-radius: 5px; border-left: 4px solid #856404;\">\n            <p style=\"margin: 0; color: #856404; font-size: 14px;\"><strong>Next Steps:</strong><br>\n            1. If you're happy with this quote, call us on <strong>(02) 4577 5277</strong> and quote <strong>${quoteNumber}</strong><br>\n            2. Your order enters our milling queue once payment is received<br>\n            3. Estimated completion time: <strong>${completionTime}</strong></p>\n          </td>\n        </tr>\n        \n        <tr>\n          <td align=\"center\" style=\"padding: 20px; margin-top: 20px; color: #666; font-size: 13px; border-top: 1px solid #ddd;\">\n            <p style=\"margin: 5px 0;\"><strong>Trend Timbers</strong><br>\n            Phone: (02) 4577 5277<br>\n            Email: info@trendtimbers.com.au</p>\n          </td>\n        </tr>\n        \n      </table>\n    </td>\n  </tr>\n</table>\n\n</body>\n</html>`;\n\n\n// =====================================================\n// BUILD PICKING SLIP HTML (for warehouse)\n// =====================================================\n\n// Build picking slip rows (re-lettered A, B, C after deletions)\nlet pickingSlipRows = '';\ncomponents.forEach((comp, index) => {\n  const letter = String.fromCharCode(65 + index);\n  pickingSlipRows += `\n    <tr>\n      <td class=\"letter-col\">${letter}</td>\n      <td class=\"component-name\">Component ${index + 1}</td>\n      <td>${comp.species || ''}</td>\n      <td style=\"font-weight: bold;\">${comp.thickness || 0}</td>\n      <td style=\"font-weight: bold;\">${comp.width || 0}</td>\n      <td class=\"highlight-yellow\">${comp.stockWidth || 0}</td>\n      <td class=\"highlight-yellow\">${comp.piecesPerStockBoard || 1}</td>\n      <td style=\"color: #919386;\">${comp.widthWaste || 0}</td>\n      <td style=\"font-weight: bold;\">${comp.length || 0}</td>\n      <td style=\"font-weight: bold;\">${comp.quantity || 0}</td>\n      <td class=\"highlight-green\">${comp.totalStockPieces || 0}</td>\n    </tr>`;\n});\n\n// Delivery text for picking slip\nconst deliveryText = quoteData.DeliveryOption === 'pickup' ? 'PICKUP' : 'DELIVERY';\nconst deliveryBadgeColor = quoteData.DeliveryOption === 'pickup' ? '#d4edda' : '#fff3cd';\n\n// Picking slip totals section with delivery breakdown\nconst pickingSlipTotalsSection = deliveryCost > 0 \n  ? `<div class=\"totals-section\">\n      <div class=\"totals-row\"><span>Timber (inc GST):</span><span>$${timberTotal.toFixed(2)}</span></div>\n      <div class=\"totals-row delivery\"><span>🚚 Delivery:</span><span>$${deliveryCost.toFixed(2)}</span></div>\n      <div class=\"totals-row total\"><span>TOTAL:</span><span>$${grandTotal.toFixed(2)}</span></div>\n    </div>`\n  : `<div class=\"totals-section\">\n      <div class=\"totals-row total\"><span>TOTAL (inc GST):</span><span>$${grandTotal.toFixed(2)}</span></div>\n    </div>`;\n\n// Get current date/time formatted\nconst now = new Date();\nconst dateStr = now.toLocaleString('en-AU', { \n  day: '2-digit', month: '2-digit', year: 'numeric',\n  hour: '2-digit', minute: '2-digit', hour12: true \n});\n\nconst pickingSlipHTML = `<!DOCTYPE html>\n<html>\n<head>\n  <meta charset=\"UTF-8\">\n  <title>Cutting List - ${quoteData.StudentName}</title>\n  <style>\n    @media print { \n      @page { size: landscape; margin: 15mm; } \n      body { margin: 0; }\n    }\n    body { font-family: Arial, sans-serif; padding: 20px; max-width: 1200px; margin: 0 auto; background: #f5f5f5; }\n    .header-container { display: flex; align-items: center; gap: 20px; padding: 20px 0; border-bottom: 4px solid #c5aa7f; margin-bottom: 20px; }\n    .header-container img { height: 80px; width: auto; }\n    .header { color: #055902; margin: 0; font-size: 32px; }\n    .info-box { background: white; padding: 20px; margin: 20px 0; border-left: 5px solid #055902; border-radius: 5px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }\n    table { width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 13px; background: white; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }\n    th { background: linear-gradient(135deg, #055902 0%, #412e28 100%); color: white; border: 1px solid #412e28; padding: 12px 8px; text-align: center; font-weight: bold; }\n    td { border: 1px solid #ddd; padding: 10px 8px; text-align: center; vertical-align: middle; background: white; }\n    .letter-col { font-weight: bold; font-size: 18px; background: linear-gradient(to bottom, #e8f4f3, #f0f8f0); color: #055902; }\n    .component-name { text-align: left; font-weight: bold; color: #412e28; }\n    .highlight-yellow { background: linear-gradient(to bottom, #fff9f0, #fffbf5); font-weight: bold; color: #412e28; border-left: 3px solid #c5aa7f; border-right: 3px solid #c5aa7f; }\n    .highlight-green { background: linear-gradient(to bottom, #e8f4f3, #f0f8f0); font-weight: bold; font-size: 16px; color: #055902; border: 2px solid #055902; }\n    .totals-section { background: #055902; color: white; padding: 15px 20px; border-radius: 5px; margin: 20px 0; max-width: 350px; margin-left: auto; }\n    .totals-row { display: flex; justify-content: space-between; padding: 8px 0; font-size: 16px; }\n    .totals-row.delivery { background: rgba(255,215,0,0.2); margin: 5px -10px; padding: 8px 10px; border-radius: 3px; color: #ffd700; }\n    .totals-row.total { border-top: 2px solid white; margin-top: 10px; padding-top: 15px; font-size: 20px; font-weight: bold; }\n    .footer { text-align: center; color: #919386; font-size: 12px; margin-top: 30px; padding-top: 20px; border-top: 2px solid #c5aa7f; }\n    .footer strong { color: #055902; }\n    .badge { display: inline-block; padding: 4px 12px; border-radius: 10px; font-weight: bold; }\n  </style>\n</head>\n<body>\n  <div class=\"header-container\">\n    <img src=\"https://trendtimbers.com.au/wp-content/uploads/2025/09/Trend-Timbers-Logo-recreation.png\" alt=\"Trend Timbers\">\n    <h1 class=\"header\">🪵 TREND TIMBERS - CUTTING LIST</h1>\n  </div>\n  \n  <div class=\"info-box\">\n    <strong style=\"color: #055902; font-size: 18px;\">Quote: ${quoteNumber}</strong><br><br>\n    <strong style=\"color: #055902;\">Student:</strong> ${toTitleCase(quoteData.StudentName)} (${toTitleCase(quoteData.School)})<br>\n    <strong style=\"color: #055902;\">Teacher:</strong> ${toTitleCase(quoteData.Teacher)}<br>\n    <strong style=\"color: #055902;\">Collection:</strong> <span class=\"badge\" style=\"background: ${deliveryBadgeColor};\">${deliveryText}</span>\n    <strong style=\"color: #055902; margin-left: 20px;\">Items:</strong> ${components.length}\n  </div>\n  \n  <table>\n    <thead>\n      <tr>\n        <th style=\"width: 5%;\">ID</th>\n        <th style=\"width: 13%;\">Component</th>\n        <th style=\"width: 11%;\">Species</th>\n        <th style=\"width: 6%;\">Thick<br>(mm)</th>\n        <th style=\"width: 8%;\">Finished<br>Width<br>(mm)</th>\n        <th style=\"width: 8%;\">Stock<br>Width<br>(mm)</th>\n        <th style=\"width: 8%;\">Pcs per<br>Board</th>\n        <th style=\"width: 8%;\">Width<br>Waste<br>(mm)</th>\n        <th style=\"width: 8%;\">Length<br>(mm)</th>\n        <th style=\"width: 6%;\">Qty</th>\n        <th style=\"width: 8%;\">Stock<br>Pieces</th>\n      </tr>\n    </thead>\n    <tbody>\n      ${pickingSlipRows}\n    </tbody>\n  </table>\n  \n  ${pickingSlipTotalsSection}\n  \n  <div class=\"footer\">\n    <strong>Generated:</strong> ${dateStr}<br>\n    <strong>Reference:</strong> ${quoteNumber} - ${toTitleCase(quoteData.StudentName)}<br>\n    This document is formatted for landscape printing on A4 paper<br>\n    <strong>Mark each piece with its ID letter (A, B, C...) for customer identification</strong>\n  </div>\n</body>\n</html>`;\n\n\n// =====================================================\n// RETURN OUTPUT\n// =====================================================\nreturn [{\n  json: {\n    // Email fields\n    to: quoteData.StudentEmail,\n    subject: `Quote ${quoteNumber} - Your Timber Quote from Trend Timbers`,\n    html: customerEmailHTML,\n    quoteId: quoteNumber,\n    \n    // Values for Google Sheets\n    deliveryCost: deliveryCost,\n    notes: notesInput,\n    newTotal: grandTotal.toFixed(2),\n    TotalsJSON: updatedTotalsJSON,\n    ComponentsJSON: quoteData.ComponentsJSON, // Already filtered by Process Edited Components\n    \n    // ✅ NEW: Updated picking slip\n    pickingSlipHTML: pickingSlipHTML\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1568,
+        0
+      ],
+      "id": "41d00eb3-1b04-486c-962c-c4c4233caabd",
+      "name": "Prepare Customer Email"
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.to }}",
+        "subject": "={{ $json.subject }}",
+        "message": "={{ $json.html }}",
+        "options": {
+          "bccList": "trendtimbers@gmail.com, info@trendtimbers.com.au",
+          "replyTo": "info@trendtimbers.com.au"
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1792,
+        0
+      ],
+      "id": "7301178d-3f12-446b-a036-b9f0172e8150",
+      "name": "Send to Customer",
+      "webhookId": "30b21d5c-4ee2-4691-8c7c-f1e8db88103d",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "9BtGWsOE6QgzT80a",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1so-VLU9J8yCwIVoYcu1cV9hoQlAnCgHqRJmXBwkq1bA",
+          "mode": "list",
+          "cachedResultName": "Quote Approvals",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1so-VLU9J8yCwIVoYcu1cV9hoQlAnCgHqRJmXBwkq1bA/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1so-VLU9J8yCwIVoYcu1cV9hoQlAnCgHqRJmXBwkq1bA/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Status": "QUOTE SENT",
+            "SentDate": "=={{ $now.toISO() }}",
+            "DeliveryCost": "={{ $('Prepare Customer Email').item.json.deliveryCost }}",
+            "Notes": "={{ $('Prepare Customer Email').item.json.notes }}",
+            "QuoteID": "={{ $('Parse Request Data').item.json.quoteId }}",
+            "TotalsJSON": "={{ $('Prepare Customer Email').item.json.TotalsJSON }}",
+            "ComponentsJSON": "={{ $('Prepare Customer Email').item.json.ComponentsJSON }}",
+            "EmailHTML": "={{ $('Prepare Customer Email').item.json.html }}",
+            "PickingSlipHTML": "={{ $('Prepare Customer Email').item.json.pickingSlipHTML }}"
+          },
+          "matchingColumns": [
+            "QuoteID"
+          ],
+          "schema": [
+            {
+              "id": "QuoteID",
+              "displayName": "QuoteID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Timestamp",
+              "displayName": "Timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "StudentName",
+              "displayName": "StudentName",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "StudentEmail",
+              "displayName": "StudentEmail",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "StudentMobile",
+              "displayName": "StudentMobile",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "School",
+              "displayName": "School",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Teacher",
+              "displayName": "Teacher",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "DeliveryOption",
+              "displayName": "DeliveryOption",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ComponentsJSON",
+              "displayName": "ComponentsJSON",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TotalsJSON",
+              "displayName": "TotalsJSON",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "EmailHTML",
+              "displayName": "EmailHTML",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PickingSlipHTML",
+              "displayName": "PickingSlipHTML",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "DeliveryCost",
+              "displayName": "DeliveryCost",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Notes",
+              "displayName": "Notes",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "SentDate",
+              "displayName": "SentDate",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        2016,
+        0
+      ],
+      "id": "57107a53-d16f-4b3c-a069-0f786da49a1a",
+      "name": "Update Quote Status",
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "CBU0H80s5UVbkRlf",
+          "name": "Google Sheets account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "<!DOCTYPE html>\n<html>\n<head>\n  <meta charset=\"UTF-8\">\n  <title>Quote Sent Successfully</title>\n  <style>\n    body { \n      font-family: Arial, sans-serif; \n      text-align: center; \n      padding: 50px; \n      background: #f5f5f5; \n      margin: 0;\n    }\n    .success { \n      background: white; \n      padding: 50px; \n      border-radius: 15px; \n      box-shadow: 0 4px 20px rgba(0,0,0,0.1); \n      max-width: 600px; \n      margin: 0 auto; \n    }\n    .checkmark { \n      font-size: 80px; \n      color: #28a745; \n      margin-bottom: 20px; \n    }\n    h1 { \n      color: #055902; \n      margin-bottom: 15px; \n    }\n    p { \n      font-size: 18px; \n      color: #666; \n      line-height: 1.6; \n    }\n  </style>\n</head>\n<body>\n  <div class=\"success\">\n    <div class=\"checkmark\">✅</div>\n    <h1>Quote Approved & Sent!</h1>\n    <p>The customer will receive their quote via email shortly.</p>\n    <p style=\"margin-top: 30px; font-size: 14px; color: #999;\">You can close this window.</p>\n  </div>\n</body>\n</html>",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "text/html; charset=utf-8"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        2464,
+        96
+      ],
+      "id": "8d2c605a-cb71-479d-b6d5-37ec62873e2b",
+      "name": "Success Page"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get all items from the workflow\nconst items = $input.all();\n\n// Get the quoteId from the \"Code in JavaScript\" node (before Fetch Quote Data)\nconst codeNode = $('Parse Request Data').first().json;\nconst searchQuoteId = codeNode.quoteId;\n\nconsole.log('Searching for QuoteID:', searchQuoteId);\n\nif (!searchQuoteId) {\n  throw new Error('No QuoteID provided in the request');\n}\n\n// Get all rows from Google Sheets\nconst allRows = $('Fetch Quote Data').all();\n\nconsole.log('Total rows from sheet:', allRows.length);\n\n// Find the row with matching QuoteID\nconst matchingRow = allRows.find(row => {\n  const rowQuoteId = row.json.QuoteID;\n  console.log('Checking row with QuoteID:', rowQuoteId);\n  return rowQuoteId === searchQuoteId;\n});\n\nif (!matchingRow) {\n  throw new Error(`Quote not found: ${searchQuoteId}. Check that this ID exists in your Google Sheet.`);\n}\n\nconsole.log('Found matching quote!');\n\n// Return the matching row\nreturn [matchingRow];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        896,
+        -96
+      ],
+      "id": "08aea11b-7287-47a2-a145-7c8cca9c1228",
+      "name": "Find Matching Quote"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get all items from the workflow\nconst items = $input.all();\n\n// Get the quoteId from the \"Code in JavaScript\" node (before Fetch Quote Data)\nconst codeNode = $('Parse Request Data').first().json;\nconst searchQuoteId = codeNode.quoteId;\n\nconsole.log('Searching for QuoteID:', searchQuoteId);\n\nif (!searchQuoteId) {\n  throw new Error('No QuoteID provided in the request');\n}\n\n// Get all rows from Google Sheets\nconst allRows = $('Fetch Quote for Sending').all();\n\nconsole.log('Total rows from sheet:', allRows.length);\n\n// Find the row with matching QuoteID\nconst matchingRow = allRows.find(row => {\n  const rowQuoteId = row.json.QuoteID;\n  console.log('Checking row with QuoteID:', rowQuoteId);\n  return rowQuoteId === searchQuoteId;\n});\n\nif (!matchingRow) {\n  throw new Error(`Quote not found: ${searchQuoteId}. Check that this ID exists in your Google Sheet.`);\n}\n\nconsole.log('Found matching quote!');\n\n// Return the matching row\nreturn [matchingRow];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        896,
+        96
+      ],
+      "id": "9cfbb0eb-78e4-4414-bede-67a8d470f05b",
+      "name": "Find Matching Quote1"
+    },
+    {
+      "parameters": {
+        "jsCode": "// =====================================================\n// TREND TIMBERS - PROCESS EDITED COMPONENTS v2\n// =====================================================\n// ✅ NEW: Filters out deleted rows (deleted_X = 1)\n// ✅ NEW: Recalculates totalStockPieces based on quantity\n// ✅ NEW: Only keeps active components in output\n// =====================================================\n\n// Get form data\nconst body = $('Webhook').item.json.body;\nconst quoteData = $input.item.json;\n\n// Parse original components\nlet originalComponents = [];\ntry {\n  originalComponents = JSON.parse(quoteData.ComponentsJSON || '[]');\n} catch(e) {\n  originalComponents = [];\n}\n\n// Process components - filter deleted and update values\nconst activeComponents = [];\n\nfor (let i = 0; i < originalComponents.length; i++) {\n  const comp = originalComponents[i];\n  \n  // ✅ CHECK IF ROW WAS DELETED\n  const isDeleted = body[`deleted_${i}`] === '1' || body[`deleted_${i}`] === 1;\n  \n  if (isDeleted) {\n    // Skip deleted rows entirely\n    console.log(`Row ${i} was deleted - skipping`);\n    continue;\n  }\n  \n  // Get edited values from form\n  const newQuantity = parseFloat(body[`quantity_${i}`]) || comp.quantity || 0;\n  const newLength = parseFloat(body[`length_${i}`]) || comp.length || 0;\n  \n  // ✅ Skip rows with 0 quantity (safety check)\n  if (newQuantity <= 0) {\n    console.log(`Row ${i} has 0 quantity - skipping`);\n    continue;\n  }\n  \n  // ✅ RECALCULATE totalStockPieces based on new quantity\n  // Original calculation: totalStockPieces = Math.ceil(quantity / piecesPerStockBoard)\n  const piecesPerBoard = comp.piecesPerStockBoard || 1;\n  const newTotalStockPieces = Math.ceil(newQuantity / piecesPerBoard);\n  \n  // ✅ RECALCULATE linear meters if length changed\n  const newLinearMeters = ((newLength / 1000) * newQuantity).toFixed(2);\n  const wastagePercent = comp.wastagePercent || 15;\n  const newLinearMetersWithWaste = (parseFloat(newLinearMeters) * (1 + wastagePercent/100)).toFixed(2);\n  \n  // Build updated component\n  activeComponents.push({\n    ...comp,  // Keep ALL original fields (species matching, pricing, etc)\n    \n    // Updated from form\n    species: body[`species_${i}`] || comp.species,\n    thickness: parseFloat(body[`thickness_${i}`]) || comp.thickness,\n    width: parseFloat(body[`width_${i}`]) || comp.width,\n    length: newLength,\n    quantity: newQuantity,\n    subtotal: (parseFloat(body[`subtotal_${i}`]) || parseFloat(comp.subtotal) || 0).toFixed(2),\n    \n    // ✅ RECALCULATED values\n    totalStockPieces: newTotalStockPieces,\n    linearMeters: newLinearMeters,\n    linearMetersWithWaste: newLinearMetersWithWaste\n  });\n}\n\nconsole.log(`Original components: ${originalComponents.length}, Active after filtering: ${activeComponents.length}`);\n\n// Calculate totals from active components only\nlet newSubtotal, gst;\n\nif (body.overrideSubtotal && body.overrideSubtotal !== '') {\n  // Use override values if provided\n  newSubtotal = parseFloat(body.overrideSubtotal);\n  gst = body.overrideGst ? parseFloat(body.overrideGst) : newSubtotal * 0.1;\n} else {\n  // Calculate from active component subtotals\n  newSubtotal = 0;\n  activeComponents.forEach(comp => {\n    newSubtotal += parseFloat(comp.subtotal || 0);\n  });\n  gst = newSubtotal * 0.1;\n}\n\nconst deliveryCost = parseFloat(body.deliveryCost) || 0;\nconst total = newSubtotal + gst + deliveryCost;\n\nconst newTotals = {\n  subtotal: newSubtotal.toFixed(2),\n  gst: gst.toFixed(2),\n  total: total.toFixed(2)\n};\n\n// ✅ OUTPUT: Only active components, with recalculated values\nreturn [{\n  json: {\n    ...quoteData,\n    \n    // ✅ UPDATED: Only contains active (non-deleted) components\n    ComponentsJSON: JSON.stringify(activeComponents),\n    TotalsJSON: JSON.stringify(newTotals),\n    \n    // Also pass as objects for easy access\n    components: activeComponents,\n    totals: newTotals,\n    \n    // Delivery info\n    DeliveryCost: deliveryCost,\n    deliveryCost: deliveryCost,\n    \n    // Form fields\n    notes: body.notes || '',\n    completionTime: body.completionTime || '3-5 business days',\n    action: body.action || 'approve',\n    \n    // ✅ NEW: Track how many were removed (for logging/debugging)\n    originalComponentCount: originalComponents.length,\n    activeComponentCount: activeComponents.length,\n    removedComponentCount: originalComponents.length - activeComponents.length\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        96
+      ],
+      "id": "90bb1181-9689-4716-a1fa-a48d0edd79b6",
+      "name": "Process Edited Components"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "fa1050b4-3d6c-4517-933b-4c2933e63a45",
+              "leftValue": "={{ $json.action }}",
+              "rightValue": "approve",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1344,
+        96
+      ],
+      "id": "e553c247-11d4-4d17-ac51-7f3f6a312085",
+      "name": "If1"
+    },
+    {
+      "parameters": {
+        "jsCode": "console.log('Available data:', JSON.stringify($json, null, 2));\nconst quoteData = $json;\n\nconst followUpHTML = `<!DOCTYPE html>\n<html>\n<head>\n  <meta charset=\"UTF-8\">\n  <style>\n    body { font-family: Helvetica, Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; }\n    .header { background: linear-gradient(135deg, #055902, #412e28); color: white; padding: 30px 20px; text-align: center; }\n    .header img { height: 60px; margin-bottom: 15px; }\n    .header h1 { margin: 0; font-size: 24px; }\n    .content { padding: 30px 20px; background: white; }\n    .info-box { background: #f9f9f9; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #055902; }\n    .notes-box { background: #fff3cd; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ff9800; }\n    .footer { background: #f5f5f5; padding: 20px; text-align: center; font-size: 14px; color: #666; }\n    .contact { margin: 20px 0; }\n  </style>\n</head>\n<body>\n  <div class=\"header\">\n    <img src=\"https://trendtimbers.com.au/wp-content/uploads/2025/08/Trend-Timbers-Logo2.png\" alt=\"Trend Timbers\">\n    <h1>Quote Follow-Up Required</h1>\n  </div>\n  \n  <div class=\"content\">\n    <p>Hi ${quoteData.StudentName},</p>\n    \n    <p>Thank you for your quote request (ID: <strong>${quoteData.QuoteID}</strong>).</p>\n    \n    <p>We've reviewed your cutting list and need to clarify a few details before we can provide an accurate quote.</p>\n    \n    <div class=\"notes-box\">\n      <h3 style=\"margin-top: 0; color: #856404;\">What we need from you:</h3>\n      <p>${$json.notes || 'Please contact us to discuss your requirements.'}</p>\n    </div>\n    \n    <div class=\"info-box\">\n      <h3 style=\"margin-top: 0; color: #055902;\">Your Quote Details:</h3>\n      <p><strong>School:</strong> ${quoteData.School}</p>\n      <p><strong>Teacher:</strong> ${quoteData.Teacher}</p>\n      <p><strong>Delivery:</strong> ${quoteData.DeliveryOption === 'pickup' ? 'Pickup from Store' : 'Delivery Required'}</p>\n    </div>\n    \n    <div class=\"contact\">\n      <p><strong>Next Steps:</strong></p>\n      <p>Please reply to this email or contact us:</p>\n      <p>📞 Phone: (02) 4577 5277<br>\n      📧 Email: info@trendtimbers.com.au</p>\n    </div>\n    \n    <p>We're here to help make sure you get exactly what you need for your project!</p>\n    \n    <p>Best regards,<br>\n    <strong>Trend Timbers Team</strong></p>\n  </div>\n  \n  <div class=\"footer\">\n    <p>Trend Timbers | 15 Railway Rd North, Mulgrave NSW 2756</p>\n    <p>www.trendtimbers.com.au</p>\n  </div>\n</body>\n</html>`;\n\nreturn [{\n  json: {\n    to: quoteData.StudentEmail,\n    subject: `Follow-up on your Trend Timbers quote - ${quoteData.StudentName}`,\n    html: followUpHTML,\n    quoteId: quoteData.QuoteID,\n    status: 'FOLLOW-UP'\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1568,
+        192
+      ],
+      "id": "28af834a-f85c-45a8-83f2-e91dff1cdc83",
+      "name": "Prepare Follow-Up Email"
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.to }}",
+        "subject": "={{ $json.subject }}",
+        "message": "={{ $json.html }}",
+        "options": {
+          "bccList": "trendtimbers@gmail.com, info@trendtimbers.com.au",
+          "replyTo": "info@trendtimbers.com.au"
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1792,
+        192
+      ],
+      "id": "e1a10791-cf0c-4691-b0ac-b377ba80b384",
+      "name": "Send a message",
+      "webhookId": "91e3746b-4fcc-4102-b4f1-4df70def6f65",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "9BtGWsOE6QgzT80a",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1so-VLU9J8yCwIVoYcu1cV9hoQlAnCgHqRJmXBwkq1bA",
+          "mode": "list",
+          "cachedResultName": "Quote Approvals",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1so-VLU9J8yCwIVoYcu1cV9hoQlAnCgHqRJmXBwkq1bA/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1so-VLU9J8yCwIVoYcu1cV9hoQlAnCgHqRJmXBwkq1bA/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Status": "FOLLOW UP",
+            "SentDate": "=={{ $now.toISO() }}",
+            "DeliveryCost": "=",
+            "Notes": "=",
+            "QuoteID": "=={{ $json.quoteId }}"
+          },
+          "matchingColumns": [
+            "QuoteID"
+          ],
+          "schema": [
+            {
+              "id": "QuoteID",
+              "displayName": "QuoteID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Timestamp",
+              "displayName": "Timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "StudentName",
+              "displayName": "StudentName",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "StudentEmail",
+              "displayName": "StudentEmail",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "StudentMobile",
+              "displayName": "StudentMobile",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "School",
+              "displayName": "School",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Teacher",
+              "displayName": "Teacher",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "DeliveryOption",
+              "displayName": "DeliveryOption",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ComponentsJSON",
+              "displayName": "ComponentsJSON",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TotalsJSON",
+              "displayName": "TotalsJSON",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "EmailHTML",
+              "displayName": "EmailHTML",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PickingSlipHTML",
+              "displayName": "PickingSlipHTML",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "DeliveryCost",
+              "displayName": "DeliveryCost",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Notes",
+              "displayName": "Notes",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "SentDate",
+              "displayName": "SentDate",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        2016,
+        192
+      ],
+      "id": "51ab119a-8de0-46bd-98c4-3c5f2cb713af",
+      "name": "Update Quote Status1",
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "CBU0H80s5UVbkRlf",
+          "name": "Google Sheets account 2"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        2240,
+        96
+      ],
+      "id": "b0e6fe8f-c8b0-46a5-9343-03a4923b036d",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst item = items[0];\nconst json = item.json;\n\n// Get query params and body\nconst params = json.query || {};\nconst body = json.body || {};\n\n// Check if form fields exist (deliveryCost only comes from POST)\nconst isPostRequest = body && (body.deliveryCost !== undefined || body.notes !== undefined);\nconst quoteId = body.quoteId || params.id || '';\nconst action = body.action || 'approve'; // NEW: Get action (approve or followup)\n\nconsole.log('=== REQUEST DEBUG ===');\nconsole.log('Body:', JSON.stringify(body));\nconsole.log('Params:', JSON.stringify(params));\nconsole.log('Action:', action);\nconsole.log('Has body.deliveryCost:', body.deliveryCost !== undefined);\nconsole.log('Detected as POST:', isPostRequest);\nconsole.log('Quote ID:', quoteId);\n\nreturn [{\n  json: {\n    requestType: isPostRequest ? 'POST' : 'GET',\n    quoteId: quoteId,\n    action: action, // NEW: Pass action through\n    deliveryCost: parseFloat(body.deliveryCost || 0),\n    notes: body.notes || '',\n    completionTime: body.completionTime || '3-5 business days'\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        0
+      ],
+      "id": "ae934654-11c8-4660-ae23-eed525b3f2f4",
+      "name": "Parse Request Data"
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Parse Request Data",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Parse Request Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Fetch Quote Data",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fetch Quote for Sending",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Quote Data": {
+      "main": [
+        [
+          {
+            "node": "Find Matching Quote",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Approval Form": {
+      "main": [
+        [
+          {
+            "node": "Show Form",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Quote for Sending": {
+      "main": [
+        [
+          {
+            "node": "Find Matching Quote1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Customer Email": {
+      "main": [
+        [
+          {
+            "node": "Send to Customer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send to Customer": {
+      "main": [
+        [
+          {
+            "node": "Update Quote Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Quote Status": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Matching Quote": {
+      "main": [
+        [
+          {
+            "node": "Build Approval Form",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Matching Quote1": {
+      "main": [
+        [
+          {
+            "node": "Process Edited Components",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Edited Components": {
+      "main": [
+        [
+          {
+            "node": "If1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If1": {
+      "main": [
+        [
+          {
+            "node": "Prepare Customer Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Follow-Up Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Follow-Up Email": {
+      "main": [
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send a message": {
+      "main": [
+        [
+          {
+            "node": "Update Quote Status1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Success Page",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Quote Status1": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Parse Request Data": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "pinData": {
+    "Webhook": [
+      {
+        "json": {
+          "headers": {
+            "host": "ttimbers.app.n8n.cloud",
+            "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36",
+            "content-length": "138",
+            "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+            "accept-encoding": "gzip, br",
+            "accept-language": "en-US,en;q=0.9",
+            "cache-control": "max-age=0",
+            "cdn-loop": "cloudflare; loops=1; subreqs=1",
+            "cf-connecting-ip": "202.172.96.187",
+            "cf-ew-via": "15",
+            "cf-ipcountry": "AU",
+            "cf-ray": "9a5577f0a214e7e2-SYD",
+            "cf-visitor": "{\"scheme\":\"https\"}",
+            "cf-worker": "n8n.cloud",
+            "content-type": "application/x-www-form-urlencoded",
+            "origin": "null",
+            "priority": "u=0, i",
+            "sec-ch-ua": "\"Chromium\";v=\"142\", \"Google Chrome\";v=\"142\", \"Not_A Brand\";v=\"99\"",
+            "sec-ch-ua-mobile": "?0",
+            "sec-ch-ua-platform": "\"Windows\"",
+            "sec-fetch-dest": "document",
+            "sec-fetch-mode": "navigate",
+            "sec-fetch-site": "cross-site",
+            "sec-fetch-user": "?1",
+            "upgrade-insecure-requests": "1",
+            "x-forwarded-for": "202.172.96.187, 162.158.168.136",
+            "x-forwarded-host": "ttimbers.app.n8n.cloud",
+            "x-forwarded-port": "443",
+            "x-forwarded-proto": "https",
+            "x-forwarded-server": "traefik-prod-users-gwc-84-57fcbd49bc-mxt98",
+            "x-is-trusted": "yes",
+            "x-real-ip": "202.172.96.187"
+          },
+          "params": {},
+          "query": {
+            "id": "TT-0675"
+          },
+          "body": {
+            "quoteId": "TT-0675",
+            "componentCount": "3",
+            "action": "approve",
+            "overrideSubtotal": "500",
+            "overrideGst": "",
+            "deliveryCost": "500",
+            "notes": "",
+            "completionTime": "3-5 business days"
+          },
+          "webhookUrl": "https://ttimbers.app.n8n.cloud/webhook/approve-quote",
+          "executionMode": "production"
+        }
+      }
+    ]
+  }
+}
